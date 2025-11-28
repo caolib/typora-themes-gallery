@@ -14,7 +14,7 @@ export interface RepoStats {
   license?: string;
   openIssues?: number;
   description?: string;
-  
+
   // Status flags
   error?: boolean;       // Generic error flag
   isRateLimit?: boolean; // Specific flag for 403/429
@@ -28,6 +28,16 @@ export interface ThemeItem extends ThemeFrontmatter {
   repoName?: string;
   stats?: RepoStats;
   loadingStats?: boolean;
+}
+
+export interface ThemeGroup {
+  id: string; // repoOwner/repoName
+  repoOwner: string;
+  repoName: string;
+  themes: ThemeItem[];
+  stats?: RepoStats;
+  loadingStats?: boolean;
+  matchedThemeId?: string; // ID of the theme that matched the search term
 }
 
 export enum SortOption {

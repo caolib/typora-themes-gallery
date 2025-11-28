@@ -13,7 +13,7 @@ const FRONTMATTER_REGEX = /^---\n([\s\S]*?)\n---/;
 const parseFrontmatter = (text: string): ThemeFrontmatter => {
   const match = text.match(FRONTMATTER_REGEX);
   const data: any = {};
-  
+
   if (match && match[1]) {
     const lines = match[1].split('\n');
     lines.forEach(line => {
@@ -51,7 +51,7 @@ export const getRepoInfoFromUrl = (url?: string): { owner: string; repo: string 
 
     const urlObj = new URL(cleanUrl);
     if (urlObj.hostname !== 'github.com' && urlObj.hostname !== 'www.github.com') return null;
-    
+
     const segments = urlObj.pathname.split('/').filter(Boolean);
     if (segments.length >= 2) {
       return { owner: segments[0], repo: segments[1] };
@@ -69,7 +69,7 @@ export const fetchThemeList = async (token?: string): Promise<GitHubContentFile[
   const headers: HeadersInit = {
     'Accept': 'application/vnd.github.v3+json'
   };
-  
+
   if (token) {
     headers['Authorization'] = `token ${token}`;
   }
@@ -77,14 +77,14 @@ export const fetchThemeList = async (token?: string): Promise<GitHubContentFile[
   // Add timestamp to bypass cache for the list as well
   const url = `${TYPORA_REPO_API}&t=${Date.now()}`;
   const response = await fetch(url, { headers });
-  
+
   if (!response.ok) {
     if (response.status === 403 || response.status === 429) {
       throw new Error('GitHub API rate limit exceeded. Please add an API token using the key icon.');
     }
     throw new Error(`Failed to fetch theme list: ${response.status} ${response.statusText}`);
   }
-  
+
   const data = await response.json();
   // Filter only .md files
   return Array.isArray(data) ? data.filter((f: any) => f.name.endsWith('.md')) : [];
@@ -100,7 +100,7 @@ export const fetchThemeDetails = async (file: GitHubContentFile): Promise<ThemeI
   }
   const text = await response.text();
   const frontmatter = parseFrontmatter(text);
-  
+
   const repoInfo = getRepoInfoFromUrl(frontmatter.homepage);
 
   // Normalize thumbnail URL
@@ -115,6 +115,7 @@ export const fetchThemeDetails = async (file: GitHubContentFile): Promise<ThemeI
     ...frontmatter,
     id: file.name,
     fileName: file.name,
+    title: frontmatter.title || file.name.replace(/\.md$/i, ''),
     thumbnail,
     repoOwner: repoInfo?.owner,
     repoName: repoInfo?.repo,
@@ -130,19 +131,19 @@ export const fetchRepoStats = async (owner: string, repo: string, token?: string
       'Accept': 'application/vnd.github.v3+json'
       // Cache-Control header removed to fix CORS error
     };
-    
+
     if (token) {
       headers['Authorization'] = `token ${token}`;
     }
 
     // Append timestamp to URL to bypass browser caching without using restricted Cache-Control headers
     const response = await fetch(`https://api.github.com/repos/${owner}/${repo}?t=${Date.now()}`, { headers });
-    
+
     // Handle Rate Limiting
     if (response.status === 403 || response.status === 429) {
       return { stars: 0, lastCommitAt: '', error: true, isRateLimit: true };
     }
-    
+
     // Handle Not Found (don't mark as error to avoid retries)
     if (response.status === 404) {
       return { stars: 0, lastCommitAt: '', isNotFound: true, error: false };

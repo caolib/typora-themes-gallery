@@ -1,18 +1,21 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { ThemeItem, SortOption } from './types';
+import { ThemeItem, ThemeGroup, SortOption } from './types';
 import { fetchThemeList, fetchThemeDetails, fetchRepoStats } from './services/githubService';
 import { ThemeCard } from './components/ThemeCard';
 import { Controls } from './components/Controls';
-import { Github, Code2, Search, AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
+import { Github, Code2, Search, AlertCircle, RefreshCw, Loader2, Moon, Sun, Monitor, ArrowUp, Languages } from 'lucide-react';
+import { translations, Language } from './utils/i18n';
 
 const BATCH_SIZE = 5;
 const DELAY_MS = 1000; // Delay between batches to be nice to API
-const CACHE_KEY = 'typora_theme_explorer_cache';
+const CACHE_KEY = 'typora_theme_explorer_cache_v2'; // Changed cache key for new structure
 const ITEMS_PER_PAGE = 15; // Number of items to load per scroll
+
+type ThemeMode = 'light' | 'dark' | 'system';
 
 export default function App() {
   // Initialize state from local storage if available
-  const [themes, setThemes] = useState<ThemeItem[]>(() => {
+  const [themeGroups, setThemeGroups] = useState<ThemeGroup[]>(() => {
     try {
       const cached = localStorage.getItem(CACHE_KEY);
       return cached ? JSON.parse(cached) : [];
@@ -22,15 +25,79 @@ export default function App() {
     }
   });
 
+  // Theme State
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
+    return (localStorage.getItem('theme_mode') as ThemeMode) || 'system';
+  });
+
+  // Language State
+  const [lang, setLang] = useState<Language>(() => {
+    return (localStorage.getItem('app_lang') as Language) || 'zh';
+  });
+
+  const t = translations[lang];
+
+  // Apply Theme Effect
+  useEffect(() => {
+    const root = window.document.documentElement;
+    const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+    const isDark = themeMode === 'dark' || (themeMode === 'system' && systemDark);
+
+    if (isDark) {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+
+    localStorage.setItem('theme_mode', themeMode);
+  }, [themeMode]);
+
+  // Persist Language
+  useEffect(() => {
+    localStorage.setItem('app_lang', lang);
+  }, [lang]);
+
+  const toggleLanguage = () => {
+    setLang(prev => prev === 'en' ? 'zh' : 'en');
+  };
+
+
+  // Pin State
+  const [pinnedGroups, setPinnedGroups] = useState<string[]>(() => {
+    try {
+      const cached = localStorage.getItem('pinned_groups');
+      return cached ? JSON.parse(cached) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  // Save pinned groups
+  useEffect(() => {
+    localStorage.setItem('pinned_groups', JSON.stringify(pinnedGroups));
+  }, [pinnedGroups]);
+
+  const togglePin = (groupId: string) => {
+    setPinnedGroups(prev => {
+      if (prev.includes(groupId)) {
+        return prev.filter(id => id !== groupId);
+      } else {
+        return [...prev, groupId];
+      }
+    });
+  };
+
   // Only show initial loading state if we have no cached themes
-  const [loadingInitial, setLoadingInitial] = useState(themes.length === 0);
+  const [loadingInitial, setLoadingInitial] = useState(themeGroups.length === 0);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortOption, setSortOption] = useState<SortOption>(SortOption.STARS);
   const [rateLimitExceeded, setRateLimitExceeded] = useState(false);
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
   const loadMoreRef = useRef<HTMLDivElement>(null);
-  
+  const [showBackToTop, setShowBackToTop] = useState(false);
+
   // Initialize token from local storage
   const [apiToken, setApiToken] = useState<string>(() => {
     return localStorage.getItem('github_token') || '';
@@ -49,38 +116,95 @@ export default function App() {
 
   // Save themes to cache whenever they change
   useEffect(() => {
-    if (themes.length > 0) {
-      localStorage.setItem(CACHE_KEY, JSON.stringify(themes));
+    if (themeGroups.length > 0) {
+      localStorage.setItem(CACHE_KEY, JSON.stringify(themeGroups));
     }
-  }, [themes]);
+  }, [themeGroups]);
+
+  // Back to Top Scroll Listener
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 300) {
+        setShowBackToTop(true);
+      } else {
+        setShowBackToTop(false);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+  };
+
+  // Helper to group themes
+  const groupThemes = (themes: ThemeItem[]): ThemeGroup[] => {
+    const groups: { [key: string]: ThemeGroup } = {};
+
+    themes.forEach(theme => {
+      const repoOwner = theme.repoOwner || 'unknown';
+      const repoName = theme.repoName || 'unknown';
+      const groupId = `${repoOwner}/${repoName}`;
+
+      if (!groups[groupId]) {
+        groups[groupId] = {
+          id: groupId,
+          repoOwner,
+          repoName,
+          themes: [],
+          loadingStats: true // Default to loading stats
+        };
+      }
+      groups[groupId].themes.push(theme);
+    });
+
+    return Object.values(groups);
+  };
 
   // Core fetch logic for getting the list and parsing MD files
   const loadData = useCallback(async (force = false) => {
-    if (!force && themes.length > 0) return;
+    if (!force && themeGroups.length > 0) return;
 
     setLoadingInitial(true);
     setFetchError(null);
     try {
       const files = await fetchThemeList(apiToken);
-      
+
       // Fetch raw content in parallel with resilience
-      const themePromises = files.map(file => 
+      const themePromises = files.map(file =>
         fetchThemeDetails(file).catch(err => {
           console.warn(`Failed to load details for ${file.name}`, err);
           return null;
         })
       );
-      
+
       const results = await Promise.all(themePromises);
       const initialThemes = results.filter((t): t is ThemeItem => t !== null);
-      
+
       if (initialThemes.length === 0 && files.length > 0) {
-         throw new Error("Failed to load details for any themes.");
+        throw new Error("Failed to load details for any themes.");
       }
 
-      // Mark all as loading stats initially, preserve existing stats if we are refreshing
-      const themesWithLoadState = initialThemes.map(t => ({ ...t, loadingStats: true }));
-      setThemes(themesWithLoadState);
+      // Group themes
+      const groups = groupThemes(initialThemes);
+
+      // Preserve existing stats if we are refreshing
+      if (force && themeGroups.length > 0) {
+        groups.forEach(newGroup => {
+          const existingGroup = themeGroups.find(g => g.id === newGroup.id);
+          if (existingGroup?.stats) {
+            newGroup.stats = existingGroup.stats;
+            newGroup.loadingStats = false; // Already have stats
+          }
+        });
+      }
+
+      setThemeGroups(groups);
       setVisibleCount(ITEMS_PER_PAGE); // Reset pagination on full reload
     } catch (error: any) {
       console.error("Failed to load themes", error);
@@ -88,15 +212,15 @@ export default function App() {
     } finally {
       setLoadingInitial(false);
     }
-  }, [apiToken, themes.length]);
+  }, [apiToken, themeGroups]);
 
   // 1. Initial Load
   useEffect(() => {
     // If we have no themes (cache empty), load data
-    if (themes.length === 0) {
+    if (themeGroups.length === 0) {
       loadData();
     }
-  }, [loadData, themes.length]);
+  }, [loadData, themeGroups.length]);
 
   // Full Refresh Handler (Reloads list + stats)
   const handleFullRefresh = () => {
@@ -105,78 +229,76 @@ export default function App() {
 
   // Stats Only Refresh (Keeps list, reloads stats)
   const handleStatsRefresh = () => {
-    setThemes(prev => prev.map(t => ({
-      ...t,
+    setThemeGroups(prev => prev.map(g => ({
+      ...g,
       loadingStats: true,
-      stats: t.stats ? { ...t.stats, error: false } : undefined // clear errors to retry
+      stats: g.stats ? { ...g.stats, error: false } : undefined // clear errors to retry
     })));
   };
 
-  // Single Theme Refresh
-  const refreshSingleTheme = async (id: string) => {
-    const themeIndex = themes.findIndex(t => t.id === id);
-    if (themeIndex === -1) return;
+  // Single Group Refresh
+  const refreshSingleGroup = async (groupId: string) => {
+    const groupIndex = themeGroups.findIndex(g => g.id === groupId);
+    if (groupIndex === -1) return;
 
-    const theme = themes[themeIndex];
-    if (!theme.repoOwner || !theme.repoName) return;
+    const group = themeGroups[groupIndex];
+    if (group.repoOwner === 'unknown' || group.repoName === 'unknown') return;
 
     // Set loading state
-    setThemes(prev => prev.map(t => t.id === id ? { ...t, loadingStats: true } : t));
+    setThemeGroups(prev => prev.map(g => g.id === groupId ? { ...g, loadingStats: true } : g));
 
     try {
-      const stats = await fetchRepoStats(theme.repoOwner, theme.repoName, apiToken);
+      const stats = await fetchRepoStats(group.repoOwner, group.repoName, apiToken);
       if (stats.isRateLimit) setRateLimitExceeded(true);
-      
-      setThemes(prev => prev.map(t => t.id === id ? { ...t, stats, loadingStats: false } : t));
+
+      setThemeGroups(prev => prev.map(g => g.id === groupId ? { ...g, stats, loadingStats: false } : g));
     } catch (error) {
-      setThemes(prev => prev.map(t => t.id === id ? { 
-        ...t, 
+      setThemeGroups(prev => prev.map(g => g.id === groupId ? {
+        ...g,
         loadingStats: false,
-        stats: { ...t.stats!, error: true } 
-      } : t));
+        stats: { ...g.stats!, error: true }
+      } : g));
     }
   };
 
   // 2. Background Process: Fetch Stats Queue
   useEffect(() => {
-    if (loadingInitial || themes.length === 0) return;
+    if (loadingInitial || themeGroups.length === 0) return;
 
-    // Filter themes that need updates:
+    // Filter groups that need updates:
     // 1. loadingStats is true (initial load or manual refresh)
     // 2. OR stats.isRateLimit is true AND we have a token (user provided token to fix error)
     // NOTE: We do NOT retry if isNotFound is true.
-    const themesToUpdate = themes.filter(t => 
-      t.repoOwner && t.repoName && (t.loadingStats || (t.stats?.isRateLimit && apiToken))
+    const groupsToUpdate = themeGroups.filter(g =>
+      g.repoOwner !== 'unknown' && g.repoName !== 'unknown' &&
+      (g.loadingStats || (g.stats?.isRateLimit && apiToken))
     );
-    
-    if (themesToUpdate.length === 0) return;
+
+    if (groupsToUpdate.length === 0) return;
 
     let isMounted = true;
     const controller = new AbortController();
 
     const processBatch = async () => {
-       // Take a small batch
-       const batch = themesToUpdate.slice(0, BATCH_SIZE);
-       
-       const updates = await Promise.all(batch.map(async (theme) => {
-         if (!theme.repoOwner || !theme.repoName) {
-            return { id: theme.id, stats: undefined, loadingStats: false };
-         }
-         // Pass the API token
-         const stats = await fetchRepoStats(theme.repoOwner, theme.repoName, apiToken);
-         
-         if (stats.isRateLimit) setRateLimitExceeded(true);
-         
-         return { id: theme.id, stats, loadingStats: false };
-       }));
+      // Take a small batch
+      const batch = groupsToUpdate.slice(0, BATCH_SIZE);
 
-       if (!isMounted) return;
+      const updates = await Promise.all(batch.map(async (group) => {
+        // Pass the API token
+        const stats = await fetchRepoStats(group.repoOwner, group.repoName, apiToken);
 
-       // Update state
-       setThemes(prev => prev.map(t => {
-         const update = updates.find(u => u.id === t.id);
-         return update ? { ...t, ...update } : t;
-       }));
+        if (stats.isRateLimit) setRateLimitExceeded(true);
+
+        return { id: group.id, stats, loadingStats: false };
+      }));
+
+      if (!isMounted) return;
+
+      // Update state
+      setThemeGroups(prev => prev.map(g => {
+        const update = updates.find(u => u.id === g.id);
+        return update ? { ...g, ...update } : g;
+      }));
     };
 
     const timeoutId = setTimeout(processBatch, DELAY_MS);
@@ -186,48 +308,68 @@ export default function App() {
       clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [themes, loadingInitial, apiToken]);
+  }, [themeGroups, loadingInitial, apiToken]);
 
 
   // 3. Filtering & Sorting Logic
-  const processedThemes = useMemo(() => {
-    let result = [...themes];
+  const processedGroups = useMemo(() => {
+    let result = [...themeGroups];
 
-    // Filter - Safe checks to prevent crash
+    // Filter - Check if ANY theme in the group matches
     if (searchTerm) {
       const lowerTerm = searchTerm.toLowerCase();
-      result = result.filter(t => 
-        (t.title || '').toLowerCase().includes(lowerTerm) || 
-        (t.author || '').toLowerCase().includes(lowerTerm) ||
-        (t.description || '').toLowerCase().includes(lowerTerm)
-      );
+      result = result.map(g => {
+        // Find the first theme that matches
+        const matchedTheme = g.themes.find(t =>
+          (t.title || '').toLowerCase().includes(lowerTerm) ||
+          (t.author || '').toLowerCase().includes(lowerTerm) ||
+          (t.description || '').toLowerCase().includes(lowerTerm)
+        );
+
+        // If found, return group with matchedThemeId
+        if (matchedTheme) {
+          return { ...g, matchedThemeId: matchedTheme.id };
+        }
+        return null;
+      }).filter((g): g is ThemeGroup => g !== null);
     }
 
     // Sort
     result.sort((a, b) => {
+      // If NOT searching, prioritize pinned items
+      if (!searchTerm) {
+        const isPinnedA = pinnedGroups.includes(a.id);
+        const isPinnedB = pinnedGroups.includes(b.id);
+        if (isPinnedA && !isPinnedB) return -1;
+        if (!isPinnedA && isPinnedB) return 1;
+      }
+
       switch (sortOption) {
         case SortOption.STARS:
           // Treat undefined stars as -1 so they go to bottom
           return (b.stats?.stars || 0) - (a.stats?.stars || 0);
         case SortOption.UPDATED:
-           // Sort by lastCommitAt (pushed_at)
-           const dateA = a.stats?.lastCommitAt ? new Date(a.stats.lastCommitAt).getTime() : 0;
-           const dateB = b.stats?.lastCommitAt ? new Date(b.stats.lastCommitAt).getTime() : 0;
-           return dateB - dateA;
+          // Sort by lastCommitAt (pushed_at)
+          const dateA = a.stats?.lastCommitAt ? new Date(a.stats.lastCommitAt).getTime() : 0;
+          const dateB = b.stats?.lastCommitAt ? new Date(b.stats.lastCommitAt).getTime() : 0;
+          return dateB - dateA;
         case SortOption.NAME:
-          return (a.title || '').localeCompare(b.title || '');
+          // Sort by the title of the first theme in the group
+          const titleA = a.themes[0]?.title || '';
+          const titleB = b.themes[0]?.title || '';
+          return titleA.localeCompare(titleB);
         default:
           return 0;
       }
     });
 
     return result;
-  }, [themes, searchTerm, sortOption]);
+  }, [themeGroups, searchTerm, sortOption, pinnedGroups]);
 
   // 4. Infinite Scroll Logic
-  const visibleThemes = useMemo(() => {
-    return processedThemes.slice(0, visibleCount);
-  }, [processedThemes, visibleCount]);
+  const visibleGroups = useMemo(() => {
+    return processedGroups.slice(0, visibleCount);
+  }, [processedGroups, visibleCount]);
 
   // Reset page when search or sort changes
   useEffect(() => {
@@ -237,8 +379,8 @@ export default function App() {
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && !loadingInitial && visibleCount < processedThemes.length) {
-           setVisibleCount(prev => Math.min(prev + ITEMS_PER_PAGE, processedThemes.length));
+        if (entries[0].isIntersecting && !loadingInitial && visibleCount < processedGroups.length) {
+          setVisibleCount(prev => Math.min(prev + ITEMS_PER_PAGE, processedGroups.length));
         }
       },
       { rootMargin: '100px' } // Load slightly before reaching bottom
@@ -249,48 +391,87 @@ export default function App() {
     }
 
     return () => observer.disconnect();
-  }, [loadingInitial, visibleCount, processedThemes.length]);
+  }, [loadingInitial, visibleCount, processedGroups.length]);
 
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col transition-colors duration-300">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 pt-8 pb-6">
+      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 pt-8 pb-6 transition-colors duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-start">
             <div>
-              <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight mb-2">
-                Typora Theme <span className="text-brand-600">Explorer</span>
+              <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 dark:text-white tracking-tight mb-2">
+                {t.title.split(' ')[0]} <span className="text-brand-600 dark:text-brand-400">{t.title.split(' ').slice(1).join(' ')}</span>
               </h1>
-              <p className="text-gray-500 max-w-2xl text-lg">
-                Discover beautiful themes for Typora. Sorted by community stars and recency.
+              <p className="text-gray-500 dark:text-gray-400 max-w-2xl text-lg">
+                {t.subtitle}
               </p>
             </div>
-            <a 
-              href="https://github.com/typora/theme.typora.io" 
-              target="_blank" 
-              rel="noreferrer"
-              className="hidden sm:flex items-center gap-2 text-gray-500 hover:text-gray-900 transition-colors"
-            >
-              <Github size={24} />
-            </a>
+
+            <div className="flex items-center gap-4">
+              {/* Theme Toggle */}
+              <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+                <button
+                  onClick={() => setThemeMode('light')}
+                  className={`p-2 rounded-md transition-all ${themeMode === 'light' ? 'bg-white dark:bg-gray-600 shadow text-brand-600 dark:text-brand-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
+                  title="Light Mode"
+                >
+                  <Sun size={18} />
+                </button>
+                <button
+                  onClick={() => setThemeMode('system')}
+                  className={`p-2 rounded-md transition-all ${themeMode === 'system' ? 'bg-white dark:bg-gray-600 shadow text-brand-600 dark:text-brand-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
+                  title="System Mode"
+                >
+                  <Monitor size={18} />
+                </button>
+                <button
+                  onClick={() => setThemeMode('dark')}
+                  className={`p-2 rounded-md transition-all ${themeMode === 'dark' ? 'bg-white dark:bg-gray-600 shadow text-brand-600 dark:text-brand-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
+                  title="Dark Mode"
+                >
+                  <Moon size={18} />
+                </button>
+              </div>
+
+              {/* Language Toggle */}
+              <button
+                onClick={toggleLanguage}
+                className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                title={lang === 'en' ? 'Switch to Chinese' : 'Switch to English'}
+              >
+                <Languages size={20} />
+                <span className="sr-only">{lang === 'en' ? 'ZH' : 'EN'}</span>
+              </button>
+
+              <a
+                href="https://github.com/caolib/typora-themes-gallery"
+                target="_blank"
+                rel="noreferrer"
+                className="hidden sm:flex items-center gap-2 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+              >
+                <Github size={24} />
+              </a>
+            </div>
           </div>
         </div>
       </header>
 
       {/* Controls (Sticky) */}
-      <Controls 
+      <Controls
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
         sortOption={sortOption}
         setSortOption={setSortOption}
-        totalThemes={processedThemes.length}
+        totalThemes={processedGroups.length}
         loading={loadingInitial}
         rateLimitExceeded={rateLimitExceeded}
         apiToken={apiToken}
         setApiToken={setApiToken}
         onRefreshFull={handleFullRefresh}
         onRefreshStats={handleStatsRefresh}
+        t={t}
       />
 
       {/* Main Grid */}
@@ -298,61 +479,64 @@ export default function App() {
         {loadingInitial ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-pulse">
             {[...Array(6)].map((_, i) => (
-              <div key={i} className="bg-white rounded-xl h-80 shadow-sm border border-gray-100"></div>
+              <div key={i} className="bg-white dark:bg-gray-800 rounded-xl h-80 shadow-sm border border-gray-100 dark:border-gray-700"></div>
             ))}
           </div>
         ) : fetchError ? (
-          <div className="text-center py-20 bg-white rounded-xl border border-gray-200 shadow-sm max-w-2xl mx-auto">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-50 mb-4">
+          <div className="text-center py-20 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm max-w-2xl mx-auto">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-50 dark:bg-red-900/20 mb-4">
               <AlertCircle className="text-red-500" size={32} />
             </div>
-            <h3 className="text-lg font-bold text-gray-900">Unable to load themes</h3>
-            <p className="text-gray-500 mt-2 max-w-md mx-auto px-4">{fetchError}</p>
-            
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white">{t.loadError}</h3>
+            <p className="text-gray-500 dark:text-gray-400 mt-2 max-w-md mx-auto px-4">{fetchError}</p>
+
             <div className="mt-8 flex flex-col items-center gap-4">
               {!apiToken && (
-                <div className="text-sm text-gray-600 bg-blue-50 px-4 py-3 rounded-lg border border-blue-100 max-w-sm">
-                  <p className="font-semibold text-blue-800 mb-1">Tip: API Limit Reached?</p>
-                  GitHub limits unauthenticated requests. Click the key icon <span className="inline-block align-middle"><Code2 size={12} /></span> in the toolbar above to add a token.
+                <div className="text-sm text-gray-600 dark:text-gray-300 bg-blue-50 dark:bg-blue-900/20 px-4 py-3 rounded-lg border border-blue-100 dark:border-blue-800 max-w-sm">
+                  <p className="font-semibold text-blue-800 dark:text-blue-400 mb-1">{t.tip}</p>
+                  {t.tipDesc} <span className="inline-block align-middle"><Code2 size={12} /></span>
                 </div>
               )}
-              
-              <button 
+
+              <button
                 onClick={handleFullRefresh}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-md shadow hover:bg-brand-700 transition-colors"
               >
                 <RefreshCw size={18} />
-                Retry
+                {t.retry}
               </button>
             </div>
           </div>
         ) : (
           <>
-            {visibleThemes.length > 0 ? (
+            {visibleGroups.length > 0 ? (
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {visibleThemes.map(theme => (
-                    <ThemeCard 
-                      key={theme.id} 
-                      theme={theme} 
-                      onRefresh={refreshSingleTheme}
+                  {visibleGroups.map(group => (
+                    <ThemeCard
+                      key={group.id}
+                      group={group}
+                      onRefresh={refreshSingleGroup}
+                      isPinned={pinnedGroups.includes(group.id)}
+                      onTogglePin={() => togglePin(group.id)}
+                      t={t}
                     />
                   ))}
                 </div>
                 {/* Infinite Scroll Sentinel */}
                 <div ref={loadMoreRef} className="h-20 w-full flex items-center justify-center mt-8">
-                   {visibleCount < processedThemes.length && (
-                      <Loader2 className="animate-spin text-brand-500" />
-                   )}
+                  {visibleCount < processedGroups.length && (
+                    <Loader2 className="animate-spin text-brand-500" />
+                  )}
                 </div>
               </>
             ) : (
               <div className="text-center py-20">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
                   <Search className="text-gray-400" size={32} />
                 </div>
-                <h3 className="text-lg font-medium text-gray-900">No themes found</h3>
-                <p className="text-gray-500 mt-2">Try adjusting your search terms.</p>
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white">{t.noThemes}</h3>
+                <p className="text-gray-500 dark:text-gray-400 mt-2">{t.noThemesDesc}</p>
               </div>
             )}
           </>
@@ -360,17 +544,27 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 py-8 mt-auto">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center text-sm text-gray-500">
+      <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-8 mt-auto transition-colors duration-300">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center text-sm text-gray-500 dark:text-gray-400">
           <div className="flex items-center gap-2 mb-4 sm:mb-0">
-            <Code2 size={16} />
-            <span>Built with React & Tailwind</span>
+            <p>{t.footerDisclaimer}</p>
           </div>
           <p>
-            Data sourced from <a href="https://theme.typora.io/" className="text-brand-600 hover:underline">theme.typora.io</a>
+            {t.dataSourced} <a href="https://theme.typora.io/" className="text-brand-600 dark:text-brand-400 hover:underline">theme.typora.io</a>
           </p>
         </div>
       </footer>
+
+      {/* Back to Top Button */}
+      {showBackToTop && (
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-8 right-8 p-3 bg-brand-600 text-white rounded-full shadow-lg hover:bg-brand-700 transition-all z-50 animate-fade-in"
+          title="Back to Top"
+        >
+          <ArrowUp size={24} />
+        </button>
+      )}
     </div>
   );
 }
