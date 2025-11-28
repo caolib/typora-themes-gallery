@@ -3,3 +3,16 @@
 body {
   font-family: "JetBrains Mono", "Cascadia Code", "汉仪有圆", "喵字果汁体", "LXGW WenKai Screen", "LXGW WenKai", sans-serif;
 }
+
+/* Utility to hide scrollbars for thumbnail rail */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+  /* Chrome, Safari, Opera */
+}

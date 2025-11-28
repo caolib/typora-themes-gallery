@@ -89,12 +89,15 @@ export function Controls({
               <select
                 value={sortOption}
                 onChange={(e) => setSortOption(e.target.value as SortOption)}
-                className="w-full sm:w-48 pl-10 pr-8 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 appearance-none cursor-pointer shadow-sm text-gray-900 dark:text-white"
+                className="w-full sm:w-48 pl-10 pr-10 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 appearance-none cursor-pointer shadow-sm text-gray-900 dark:text-white"
               >
                 <option value={SortOption.STARS}>{t.sortStars}</option>
                 <option value={SortOption.UPDATED}>{t.sortUpdated}</option>
                 <option value={SortOption.NAME}>{t.sortName}</option>
               </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                  <ChevronDown size={14} />
+                </div>
             </div>
 
             <div className="flex items-center gap-2">
@@ -113,8 +116,10 @@ export function Controls({
                   <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 py-1 z-50 overflow-hidden">
                     <button
                       onClick={() => {
-                        onRefreshFull();
-                        setShowRefreshMenu(false);
+                        if (window.confirm(t.refreshWarning)) {
+                          onRefreshFull();
+                          setShowRefreshMenu(false);
+                        }
                       }}
                       className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200"
                     >
@@ -150,7 +155,7 @@ export function Controls({
                     setShowTokenInput(!showTokenInput);
                   }}
                   className={`p-2 rounded-lg border transition-all shadow-sm ${apiToken
-                    ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-200 dark:border-brand-800 text-brand-600 dark:text-brand-400'
+                    ? 'bg-brand-50 dark:bg-brand-900/40 border-brand-200 dark:border-brand-800 text-brand-700 dark:text-brand-200'
                     : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                     }`}
                   title={apiToken ? t.tokenSet : t.setToken}
@@ -160,11 +165,29 @@ export function Controls({
 
                 {/* Token Input Popover */}
                 {showTokenInput && (
-                  <div className="absolute right-0 top-full mt-2 w-72 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-4 z-50">
+                  <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-4 z-50">
                     <h3 className="font-semibold text-gray-900 dark:text-white mb-2">{t.tokenTitle}</h3>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
                       {t.tokenDesc}
                     </p>
+
+                    {/* Setup Guide */}
+                    <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800">
+                      <p className="text-xs text-gray-700 dark:text-gray-300 mb-2">
+                        {t.tokenGuide1}{' '}
+                        <a
+                          href="https://github.com/settings/personal-access-tokens/new"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                        >
+                          github.com/settings/personal-access-tokens/new
+                        </a>
+                      </p>
+                      <p className="text-xs text-gray-700 dark:text-gray-300 mb-1">{t.tokenGuide2}</p>
+                      <p className="text-xs text-gray-700 dark:text-gray-300">{t.tokenGuide3}</p>
+                    </div>
+
                     <input
                       type="password"
                       value={tempToken}

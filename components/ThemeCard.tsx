@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Star, Calendar, Download, HelpCircle, Pin, ExternalLink, Github } from 'lucide-react';
 import { ThemeItem, ThemeGroup } from '../types';
 import { translations } from '../utils/i18n';
@@ -25,6 +25,24 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({ group, onRefresh, isPinned
   const activeTheme = themes.find(t => t.id === activeThemeId) || themes[0];
   const activeIndex = themes.findIndex(t => t.id === activeThemeId);
 
+  const [paused, setPaused] = useState(false);
+
+  // Auto-rotate themes when there are multiple previews
+  useEffect(() => {
+    if (themes.length <= 1) return;
+
+    const id = setInterval(() => {
+      if (paused) return;
+      setActiveThemeId(prevId => {
+        const idx = themes.findIndex(x => x.id === prevId);
+        const next = (idx + 1) % themes.length;
+        return themes[next].id;
+      });
+    }, 4000);
+
+    return () => clearInterval(id);
+  }, [themes, paused]);
+
   // Helper to change theme
   const changeTheme = (newId: string) => {
     if (newId === activeThemeId) return;
@@ -43,7 +61,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({ group, onRefresh, isPinned
       }`}>
 
       {/* Image Carousel Area */}
-      <div className="relative aspect-[16/10] overflow-hidden bg-gray-100 dark:bg-gray-900">
+      <div className="relative aspect-[16/10] overflow-hidden bg-gray-100 dark:bg-gray-900" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
         {/* Sliding Container */}
         <div
           className="flex h-full transition-transform duration-500 ease-out"
@@ -84,7 +102,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({ group, onRefresh, isPinned
 
         {/* Theme Variants Selector (Overlay) */}
         {themes.length > 1 && (
-          <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent pt-10 flex gap-2 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none'] z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent pt-10 flex gap-2 overflow-x-auto no-scrollbar z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
             {themes.map((t) => (
               <button
                 key={t.id}

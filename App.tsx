@@ -3,7 +3,7 @@ import { ThemeItem, ThemeGroup, SortOption } from './types';
 import { fetchThemeList, fetchThemeDetails, fetchRepoStats } from './services/githubService';
 import { ThemeCard } from './components/ThemeCard';
 import { Controls } from './components/Controls';
-import { Github, Code2, Search, AlertCircle, RefreshCw, Loader2, Moon, Sun, Monitor, ArrowUp, Languages } from 'lucide-react';
+import { Github, Code2, Search, AlertCircle, RefreshCw, Loader2, Moon, Sun, Monitor, ArrowUp, Languages, ChevronDown } from 'lucide-react';
 import { translations, Language } from './utils/i18n';
 
 const BATCH_SIZE = 5;
@@ -36,6 +36,21 @@ export default function App() {
   });
 
   const t = translations[lang];
+
+  // Language menu state & outside-click handler
+  const [showLangMenu, setShowLangMenu] = useState(false);
+  const langMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (langMenuRef.current && !langMenuRef.current.contains(event.target as Node)) {
+        setShowLangMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Apply Theme Effect
   useEffect(() => {
@@ -397,16 +412,13 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col transition-colors duration-300">
       {/* Header */}
-      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 pt-8 pb-6 transition-colors duration-300">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 pt-6 pb-4 transition-colors duration-300">
+        <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-start">
             <div>
-              <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 dark:text-white tracking-tight mb-2">
+              <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 dark:text-white tracking-tight">
                 {t.title.split(' ')[0]} <span className="text-brand-600 dark:text-brand-400">{t.title.split(' ').slice(1).join(' ')}</span>
               </h1>
-              <p className="text-gray-500 dark:text-gray-400 max-w-2xl text-lg">
-                {t.subtitle}
-              </p>
             </div>
 
             <div className="flex items-center gap-4">
@@ -435,15 +447,35 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Language Toggle */}
-              <button
-                onClick={toggleLanguage}
-                className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-                title={lang === 'en' ? 'Switch to Chinese' : 'Switch to English'}
-              >
-                <Languages size={20} />
-                <span className="sr-only">{lang === 'en' ? 'ZH' : 'EN'}</span>
-              </button>
+              {/* Language Menu */}
+              <div className="relative" ref={langMenuRef}>
+                <button
+                  onClick={() => setShowLangMenu(!showLangMenu)}
+                  className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors flex items-center gap-2"
+                  title="Language"
+                >
+                  <Languages size={20} />
+                  <span className="sr-only">{lang === 'en' ? 'ZH' : 'EN'}</span>
+                  <ChevronDown size={14} className="text-gray-400" />
+                </button>
+
+                {showLangMenu && (
+                  <div className="absolute right-0 mt-2 w-40 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
+                    <button
+                      onClick={() => { setLang('en'); setShowLangMenu(false); }}
+                      className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm text-gray-700 dark:text-gray-200"
+                    >
+                      English
+                    </button>
+                    <button
+                      onClick={() => { setLang('zh'); setShowLangMenu(false); }}
+                      className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm text-gray-700 dark:text-gray-200"
+                    >
+                      简体中文
+                    </button>
+                  </div>
+                )}
+              </div>
 
               <a
                 href="https://github.com/caolib/typora-themes-gallery"
@@ -475,7 +507,7 @@ export default function App() {
       />
 
       {/* Main Grid */}
-      <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+      <main className="flex-grow max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
         {loadingInitial ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-pulse">
             {[...Array(6)].map((_, i) => (
@@ -511,7 +543,7 @@ export default function App() {
           <>
             {visibleGroups.length > 0 ? (
               <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
                   {visibleGroups.map(group => (
                     <ThemeCard
                       key={group.id}
@@ -545,7 +577,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-8 mt-auto transition-colors duration-300">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center text-sm text-gray-500 dark:text-gray-400">
+        <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center text-sm text-gray-500 dark:text-gray-400">
           <div className="flex items-center gap-2 mb-4 sm:mb-0">
             <p>{t.footerDisclaimer}</p>
           </div>
