@@ -1,0 +1,5 @@
+{
+  "name": "Typora Theme Explorer",
+  "description": "A dashboard to browse Typora themes with live GitHub statistics including stars, last updated dates, and download links.",
+  "requestFramePermissions": []
+}
