@@ -1,5 +1,4 @@
-import React from 'react';
-import { Search, ArrowUpDown, X, ChevronDown } from 'lucide-react';
+import { Search, ArrowUpDown, X, ChevronDown, RefreshCw } from 'lucide-react';
 import { SortOption } from '../types';
 import { translations } from '../utils/i18n';
 
@@ -10,6 +9,8 @@ interface ControlsProps {
   setSortOption: (option: SortOption) => void;
   totalThemes: number;
   t: typeof translations['en'];
+  onRefresh: () => void;
+  refreshing: boolean;
 }
 
 export function Controls({
@@ -18,7 +19,9 @@ export function Controls({
   sortOption,
   setSortOption,
   totalThemes,
-  t
+  t,
+  onRefresh,
+  refreshing
 }: ControlsProps) {
 
   return (
@@ -48,6 +51,16 @@ export function Controls({
           </div>
 
           <div className="flex items-center gap-3 w-full sm:w-auto">
+            {/* Refresh Button */}
+            <button
+              onClick={onRefresh}
+              disabled={refreshing}
+              className={`p-2 rounded-lg bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:border-brand-200 dark:hover:border-brand-800 transition-all shadow-sm ${refreshing ? 'cursor-not-allowed opacity-70' : ''}`}
+              title={t.retry}
+            >
+              <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
+            </button>
+
             {/* Sort */}
             <div className="relative w-full sm:w-auto">
               <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">

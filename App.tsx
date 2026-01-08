@@ -170,11 +170,19 @@ const Gallery = () => {
   };
 
 
+  // Track themeGroups with a ref for use in useCallback without creating loops
+  const themeGroupsRef = useRef(themeGroups);
+  useEffect(() => {
+    themeGroupsRef.current = themeGroups;
+  }, [themeGroups]);
+
   // Core fetch logic using pre-built static JSON
   const loadData = useCallback(async (force = false) => {
-    if (!force && themeGroups.length > 0) return;
+    if (!force && themeGroupsRef.current.length > 0) return;
 
-    setLoadingInitial(true);
+    if (themeGroupsRef.current.length === 0) {
+      setLoadingInitial(true);
+    }
     setFetchError(null);
     try {
       // Try to fetch static JSON first (fast, no rate limit)
@@ -188,19 +196,24 @@ const Gallery = () => {
     } finally {
       setLoadingInitial(false);
     }
-  }, [themeGroups]);
+  }, []); // No dependencies, safe to use in initial load effect
 
   // 1. Initial Load
   useEffect(() => {
-    // If we have no themes (cache empty), load data
+    // Only load automatically if we have NO cached data
     if (themeGroups.length === 0) {
       loadData();
     }
   }, [loadData, themeGroups.length]);
 
-  // Full Refresh Handler (Reloads list + stats)
-  const handleFullRefresh = () => {
-    loadData(true);
+  // If loading while we already have data, it means it's a manual refresh
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Wrap loadData to track isRefreshing
+  const handleFullRefresh = async () => {
+    setIsRefreshing(true);
+    await loadData(true);
+    setIsRefreshing(false);
   };
 
 
@@ -376,6 +389,8 @@ const Gallery = () => {
         setSortOption={setSortOption}
         totalThemes={processedGroups.length}
         t={t}
+        onRefresh={handleFullRefresh}
+        refreshing={isRefreshing}
       />
 
       {/* Main Grid */}
