@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-family: 'JetBrains Mono', 'Cascadia Code', '汉仪有圆', 'LXGW WenKai', '霞鹜文楷', 'FangSong', '仿宋', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  }
+}
+
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Force inline display for images in prose paragraphs to fix badge stacking */
+.prose p>img {
+  display: inline-block;
+  margin-top: 2px;
+  margin-bottom: 2px;
+  margin-right: 4px;
+}
+
+/* Completely Hide Scrollbar */
+@layer base {
+
+  /* Chrome, Safari, Edge */
+  ::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Firefox */
+  * {
+    scrollbar-width: none;
+  }
+
+  /* Internet Explorer/Legacy Edge */
+  * {
+    -ms-overflow-style: none;
+  }
+}

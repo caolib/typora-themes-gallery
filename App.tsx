@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { Routes, Route } from 'react-router-dom';
 import { ThemeItem, ThemeGroup, SortOption } from './types';
-import { fetchThemeList, fetchThemeDetails, fetchRepoStats } from './services/githubService';
+import { fetchThemesFromStatic } from './services/githubService';
 import { ThemeCard } from './components/ThemeCard';
 import { Controls } from './components/Controls';
-import { Github, Code2, Search, AlertCircle, RefreshCw, Loader2, Moon, Sun, Monitor, ArrowUp, Languages, ChevronDown } from 'lucide-react';
+import { ThemeDetail } from './components/ThemeDetail';
+import { Github, Search, AlertCircle, RefreshCw, Loader2, Moon, Sun, Monitor, ArrowUp, Languages, ChevronDown } from 'lucide-react';
 import { translations, Language } from './utils/i18n';
 
 const BATCH_SIZE = 5;
@@ -13,7 +15,8 @@ const ITEMS_PER_PAGE = 15; // Number of items to load per scroll
 
 type ThemeMode = 'light' | 'dark' | 'system';
 
-export default function App() {
+// The main gallery content component
+const Gallery = () => {
   // Initialize state from local storage if available
   const [themeGroups, setThemeGroups] = useState<ThemeGroup[]>(() => {
     try {
@@ -108,26 +111,11 @@ export default function App() {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortOption, setSortOption] = useState<SortOption>(SortOption.STARS);
-  const [rateLimitExceeded, setRateLimitExceeded] = useState(false);
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
 
-  // Initialize token from local storage
-  const [apiToken, setApiToken] = useState<string>(() => {
-    return localStorage.getItem('github_token') || '';
-  });
 
-  // Save token to local storage when it changes
-  useEffect(() => {
-    if (apiToken) {
-      localStorage.setItem('github_token', apiToken);
-    } else {
-      localStorage.removeItem('github_token');
-    }
-    // If token changes, we reset rate limit warning
-    setRateLimitExceeded(false);
-  }, [apiToken]);
 
   // Save themes to cache whenever they change
   useEffect(() => {
@@ -181,53 +169,26 @@ export default function App() {
     return Object.values(groups);
   };
 
-  // Core fetch logic for getting the list and parsing MD files
+
+  // Core fetch logic using pre-built static JSON
   const loadData = useCallback(async (force = false) => {
     if (!force && themeGroups.length > 0) return;
 
     setLoadingInitial(true);
     setFetchError(null);
     try {
-      const files = await fetchThemeList(apiToken);
-
-      // Fetch raw content in parallel with resilience
-      const themePromises = files.map(file =>
-        fetchThemeDetails(file).catch(err => {
-          console.warn(`Failed to load details for ${file.name}`, err);
-          return null;
-        })
-      );
-
-      const results = await Promise.all(themePromises);
-      const initialThemes = results.filter((t): t is ThemeItem => t !== null);
-
-      if (initialThemes.length === 0 && files.length > 0) {
-        throw new Error("Failed to load details for any themes.");
-      }
-
-      // Group themes
-      const groups = groupThemes(initialThemes);
-
-      // Preserve existing stats if we are refreshing
-      if (force && themeGroups.length > 0) {
-        groups.forEach(newGroup => {
-          const existingGroup = themeGroups.find(g => g.id === newGroup.id);
-          if (existingGroup?.stats) {
-            newGroup.stats = existingGroup.stats;
-            newGroup.loadingStats = false; // Already have stats
-          }
-        });
-      }
+      // Try to fetch static JSON first (fast, no rate limit)
+      const groups = await fetchThemesFromStatic();
 
       setThemeGroups(groups);
       setVisibleCount(ITEMS_PER_PAGE); // Reset pagination on full reload
     } catch (error: any) {
       console.error("Failed to load themes", error);
-      setFetchError(error.message || "Failed to load themes. Check your connection or API limit.");
+      setFetchError(error.message || "Failed to load themes.");
     } finally {
       setLoadingInitial(false);
     }
-  }, [apiToken, themeGroups]);
+  }, [themeGroups]);
 
   // 1. Initial Load
   useEffect(() => {
@@ -241,89 +202,6 @@ export default function App() {
   const handleFullRefresh = () => {
     loadData(true);
   };
-
-  // Stats Only Refresh (Keeps list, reloads stats)
-  const handleStatsRefresh = () => {
-    setThemeGroups(prev => prev.map(g => ({
-      ...g,
-      loadingStats: true,
-      stats: g.stats ? { ...g.stats, error: false } : undefined // clear errors to retry
-    })));
-  };
-
-  // Single Group Refresh
-  const refreshSingleGroup = async (groupId: string) => {
-    const groupIndex = themeGroups.findIndex(g => g.id === groupId);
-    if (groupIndex === -1) return;
-
-    const group = themeGroups[groupIndex];
-    if (group.repoOwner === 'unknown' || group.repoName === 'unknown') return;
-
-    // Set loading state
-    setThemeGroups(prev => prev.map(g => g.id === groupId ? { ...g, loadingStats: true } : g));
-
-    try {
-      const stats = await fetchRepoStats(group.repoOwner, group.repoName, apiToken);
-      if (stats.isRateLimit) setRateLimitExceeded(true);
-
-      setThemeGroups(prev => prev.map(g => g.id === groupId ? { ...g, stats, loadingStats: false } : g));
-    } catch (error) {
-      setThemeGroups(prev => prev.map(g => g.id === groupId ? {
-        ...g,
-        loadingStats: false,
-        stats: { ...g.stats!, error: true }
-      } : g));
-    }
-  };
-
-  // 2. Background Process: Fetch Stats Queue
-  useEffect(() => {
-    if (loadingInitial || themeGroups.length === 0) return;
-
-    // Filter groups that need updates:
-    // 1. loadingStats is true (initial load or manual refresh)
-    // 2. OR stats.isRateLimit is true AND we have a token (user provided token to fix error)
-    // NOTE: We do NOT retry if isNotFound is true.
-    const groupsToUpdate = themeGroups.filter(g =>
-      g.repoOwner !== 'unknown' && g.repoName !== 'unknown' &&
-      (g.loadingStats || (g.stats?.isRateLimit && apiToken))
-    );
-
-    if (groupsToUpdate.length === 0) return;
-
-    let isMounted = true;
-    const controller = new AbortController();
-
-    const processBatch = async () => {
-      // Take a small batch
-      const batch = groupsToUpdate.slice(0, BATCH_SIZE);
-
-      const updates = await Promise.all(batch.map(async (group) => {
-        // Pass the API token
-        const stats = await fetchRepoStats(group.repoOwner, group.repoName, apiToken);
-
-        if (stats.isRateLimit) setRateLimitExceeded(true);
-
-        return { id: group.id, stats, loadingStats: false };
-      }));
-
-      if (!isMounted) return;
-
-      // Update state
-      setThemeGroups(prev => prev.map(g => {
-        const update = updates.find(u => u.id === g.id);
-        return update ? { ...g, ...update } : g;
-      }));
-    };
-
-    const timeoutId = setTimeout(processBatch, DELAY_MS);
-
-    return () => {
-      isMounted = false;
-      clearTimeout(timeoutId);
-      controller.abort();
-    };
-  }, [themeGroups, loadingInitial, apiToken]);
 
 
   // 3. Filtering & Sorting Logic
@@ -497,12 +375,6 @@ export default function App() {
         sortOption={sortOption}
         setSortOption={setSortOption}
         totalThemes={processedGroups.length}
-        loading={loadingInitial}
-        rateLimitExceeded={rateLimitExceeded}
-        apiToken={apiToken}
-        setApiToken={setApiToken}
-        onRefreshFull={handleFullRefresh}
-        onRefreshStats={handleStatsRefresh}
         t={t}
       />
 
@@ -523,13 +395,6 @@ export default function App() {
             <p className="text-gray-500 dark:text-gray-400 mt-2 max-w-md mx-auto px-4">{fetchError}</p>
 
             <div className="mt-8 flex flex-col items-center gap-4">
-              {!apiToken && (
-                <div className="text-sm text-gray-600 dark:text-gray-300 bg-blue-50 dark:bg-blue-900/20 px-4 py-3 rounded-lg border border-blue-100 dark:border-blue-800 max-w-sm">
-                  <p className="font-semibold text-blue-800 dark:text-blue-400 mb-1">{t.tip}</p>
-                  {t.tipDesc} <span className="inline-block align-middle"><Code2 size={12} /></span>
-                </div>
-              )}
-
               <button
                 onClick={handleFullRefresh}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-md shadow hover:bg-brand-700 transition-colors"
@@ -548,7 +413,6 @@ export default function App() {
                     <ThemeCard
                       key={group.id}
                       group={group}
-                      onRefresh={refreshSingleGroup}
                       isPinned={pinnedGroups.includes(group.id)}
                       onTogglePin={() => togglePin(group.id)}
                       t={t}
@@ -598,5 +462,14 @@ export default function App() {
         </button>
       )}
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<Gallery />} />
+      <Route path="/theme/:id" element={<ThemeDetail />} />
+    </Routes>
   );
 }

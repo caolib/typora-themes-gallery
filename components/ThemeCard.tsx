@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Star, Calendar, Download, HelpCircle, Pin, ExternalLink, Github } from 'lucide-react';
-import { ThemeItem, ThemeGroup } from '../types';
+import { Link } from 'react-router-dom';
+import { Star, Calendar, Download, Pin, ExternalLink, Github } from 'lucide-react';
+import { ThemeGroup } from '../types';
 import { translations } from '../utils/i18n';
 
 interface ThemeCardProps {
   group: ThemeGroup;
-  onRefresh: (groupId: string) => void;
   isPinned: boolean;
   onTogglePin: () => void;
   t: typeof translations['en'];
 }
 
-export const ThemeCard: React.FC<ThemeCardProps> = ({ group, onRefresh, isPinned, onTogglePin, t }) => {
+export const ThemeCard: React.FC<ThemeCardProps> = ({ group, isPinned, onTogglePin, t }) => {
   const { themes, stats, loadingStats, matchedThemeId } = group;
 
   // Initialize with matched theme if available, otherwise first theme
@@ -50,7 +50,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({ group, onRefresh, isPinned
   };
 
   // Update active theme if matchedThemeId changes (e.g. new search)
-  React.useEffect(() => {
+  useEffect(() => {
     if (matchedThemeId && themes.some(t => t.id === matchedThemeId)) {
       setActiveThemeId(matchedThemeId);
     }
@@ -61,7 +61,12 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({ group, onRefresh, isPinned
       }`}>
 
       {/* Image Carousel Area */}
-      <div className="relative aspect-[16/10] overflow-hidden bg-gray-100 dark:bg-gray-900" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
+      <Link
+        to={`/theme/${encodeURIComponent(group.id)}`}
+        className="relative aspect-[16/10] overflow-hidden bg-gray-100 dark:bg-gray-900 block cursor-pointer"
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+      >
         {/* Sliding Container */}
         <div
           className="flex h-full transition-transform duration-500 ease-out"
@@ -88,6 +93,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({ group, onRefresh, isPinned
         {/* Pin Button */}
         <button
           onClick={(e) => {
+            e.preventDefault(); // Prevent navigation when clicking pin
             e.stopPropagation();
             onTogglePin();
           }}
@@ -108,6 +114,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({ group, onRefresh, isPinned
                 key={t.id}
                 onMouseEnter={() => changeTheme(t.id)}
                 onClick={(e) => {
+                  e.preventDefault();
                   e.stopPropagation();
                   changeTheme(t.id);
                 }}
@@ -128,25 +135,20 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({ group, onRefresh, isPinned
             ))}
           </div>
         )}
-      </div>
+      </Link>
 
       {/* Content */}
       <div className="p-4 flex flex-col flex-grow">
         <div className="flex justify-between items-start mb-2">
           <div>
             <h3 className="font-bold text-lg text-gray-900 dark:text-white line-clamp-1" title={activeTheme.title}>
-              {activeTheme.homepage ? (
-                <a
-                  href={activeTheme.homepage}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
-                >
-                  {activeTheme.title}
-                </a>
-              ) : (
-                activeTheme.title
-              )}
+              {/* Clickable Title for Detail View */}
+              <Link
+                to={`/theme/${encodeURIComponent(group.id)}`}
+                className="hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+              >
+                {activeTheme.title}
+              </Link>
             </h3>
             <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1">
               <a
@@ -154,6 +156,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({ group, onRefresh, isPinned
                 target="_blank"
                 rel="noreferrer"
                 className="hover:text-brand-600 dark:hover:text-brand-400 hover:underline transition-colors"
+                onClick={(e) => e.stopPropagation()}
               >
                 {group.repoOwner}
               </a>
@@ -193,7 +196,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({ group, onRefresh, isPinned
                 className="p-2 text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 rounded-lg transition-colors"
                 title={t.viewHomepage}
               >
-                <ExternalLink size={18} />
+                <Github size={18} />
               </a>
             )}
 
