@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
@@ -17,6 +17,7 @@ export const ThemeDetail: React.FC = () => {
     // Ideally, we pass the group ID, but the group ID is "owner/repo".
 
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const [markdown, setMarkdown] = useState<string>('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -39,13 +40,13 @@ export const ThemeDetail: React.FC = () => {
 
                 setGroup(foundGroup);
 
-                // Use the first theme's filename or logic to find specific theme file?
-                // The user request said "click card title logic changed". 
-                // A card represents a ThemeGroup. A ThemeGroup has array of 'themes'.
-                // We probably should show the first theme's MD or allow selection?
-                // Usually 1 repo = 1 theme concept, but sometimes multiple variations.
-                // Let's use the first theme's fileName.
-                const themeItem = foundGroup.themes[0];
+                // Determine which theme to show. If variant is provided in URL, prioritize it.
+                // Otherwise use the first theme.
+                const variantId = searchParams.get('variant');
+                const themeItem = variantId
+                    ? foundGroup.themes.find(t => t.id === variantId) || foundGroup.themes[0]
+                    : foundGroup.themes[0];
+
                 if (!themeItem || !themeItem.fileName) {
                     setError('No markdown file associated with this theme.');
                     return;

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Star, Calendar, Download, Pin, ExternalLink, Github } from 'lucide-react';
+import { Star, Calendar, Download, Pin, ExternalLink, Github, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ThemeGroup } from '../types';
 import { translations } from '../utils/i18n';
 
@@ -12,6 +12,7 @@ interface ThemeCardProps {
 }
 
 export const ThemeCard: React.FC<ThemeCardProps> = ({ group, isPinned, onTogglePin, t }) => {
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const { themes, stats, loadingStats, matchedThemeId } = group;
 
   // Initialize with matched theme if available, otherwise first theme
@@ -62,7 +63,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({ group, isPinned, onToggleP
 
       {/* Image Carousel Area */}
       <Link
-        to={`/theme/${encodeURIComponent(group.id)}`}
+        to={`/theme/${encodeURIComponent(group.id)}?variant=${encodeURIComponent(activeThemeId)}`}
         className="relative aspect-[16/10] overflow-hidden bg-gray-100 dark:bg-gray-900 block cursor-pointer"
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
@@ -87,52 +88,63 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({ group, isPinned, onToggleP
           ))}
         </div>
 
-        {/* Overlay Gradient */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
 
-        {/* Pin Button */}
-        <button
-          onClick={(e) => {
-            e.preventDefault(); // Prevent navigation when clicking pin
-            e.stopPropagation();
-            onTogglePin();
-          }}
-          className={`absolute top-3 right-3 p-2 rounded-full backdrop-blur-md transition-all z-10 ${isPinned
-            ? 'bg-brand-500 text-white shadow-lg scale-110'
-            : 'bg-white/90 dark:bg-gray-800/90 text-gray-400 hover:text-brand-500 hover:bg-white dark:hover:bg-gray-700 shadow-sm opacity-0 group-hover:opacity-100'
-            }`}
-          title={isPinned ? t.unpin : t.pin}
-        >
-          <Pin size={16} className={isPinned ? "fill-current" : ""} />
-        </button>
+
+
 
         {/* Theme Variants Selector (Overlay) */}
         {themes.length > 1 && (
-          <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent pt-10 flex gap-2 overflow-x-auto no-scrollbar z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-            {themes.map((t) => (
-              <button
-                key={t.id}
-                onMouseEnter={() => changeTheme(t.id)}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  changeTheme(t.id);
-                }}
-                className={`flex-shrink-0 w-10 h-10 rounded-md overflow-hidden border-2 transition-all shadow-sm ${activeThemeId === t.id
-                  ? 'border-brand-400 scale-110 ring-2 ring-brand-400/50'
-                  : 'border-white/30 opacity-70 hover:opacity-100 hover:border-white/80'
-                  }`}
-                title={t.title}
-              >
-                {t.thumbnail ? (
-                  <img src={t.thumbnail} alt={t.title} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[10px] text-gray-500 dark:text-gray-400">
-                    {(t.title || 'U').charAt(0)}
-                  </div>
-                )}
-              </button>
-            ))}
+          <div className="absolute bottom-0 left-0 right-0 px-2 py-3 bg-gradient-to-t from-black/90 to-transparent pt-12 flex items-center justify-between gap-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+
+            <button
+              className="p-1 rounded-full bg-black/30 hover:bg-black/60 text-white/90 transition-colors backdrop-blur-sm flex-shrink-0"
+              onClick={(e) => {
+                e.preventDefault(); e.stopPropagation();
+                scrollContainerRef.current?.scrollBy({ left: -100, behavior: 'smooth' });
+              }}
+            >
+              <ChevronLeft size={16} />
+            </button>
+
+            <div
+              ref={scrollContainerRef}
+              className="flex gap-2 overflow-x-auto no-scrollbar scroll-smooth px-1 py-1"
+            >
+              {themes.map((t) => (
+                <button
+                  key={t.id}
+                  onMouseEnter={() => changeTheme(t.id)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    changeTheme(t.id);
+                  }}
+                  className={`flex-shrink-0 w-10 h-10 rounded-md overflow-hidden border-2 transition-all shadow-sm ${activeThemeId === t.id
+                    ? 'border-brand-400 scale-110 ring-2 ring-brand-400/50'
+                    : 'border-white/30 opacity-70 hover:opacity-100 hover:border-white/80'
+                    }`}
+                  title={t.title}
+                >
+                  {t.thumbnail ? (
+                    <img src={t.thumbnail} alt={t.title} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[10px] text-gray-500 dark:text-gray-400">
+                      {(t.title || 'U').charAt(0)}
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            <button
+              className="p-1 rounded-full bg-black/30 hover:bg-black/60 text-white/90 transition-colors backdrop-blur-sm flex-shrink-0"
+              onClick={(e) => {
+                e.preventDefault(); e.stopPropagation();
+                scrollContainerRef.current?.scrollBy({ left: 100, behavior: 'smooth' });
+              }}
+            >
+              <ChevronRight size={16} />
+            </button>
           </div>
         )}
       </Link>
@@ -144,22 +156,26 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({ group, isPinned, onToggleP
             <h3 className="font-bold text-lg text-gray-900 dark:text-white line-clamp-1" title={activeTheme.title}>
               {/* Clickable Title for Detail View */}
               <Link
-                to={`/theme/${encodeURIComponent(group.id)}`}
+                to={`/theme/${encodeURIComponent(group.id)}?variant=${encodeURIComponent(activeThemeId)}`}
                 className="hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
               >
                 {activeTheme.title}
               </Link>
             </h3>
             <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1">
-              <a
-                href={`https://github.com/${group.repoOwner}`}
-                target="_blank"
-                rel="noreferrer"
-                className="hover:text-brand-600 dark:hover:text-brand-400 hover:underline transition-colors"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {group.repoOwner}
-              </a>
+              {group.repoOwner !== 'unknown' && !group.id.startsWith('author/') && !group.id.startsWith('standalone/') ? (
+                <a
+                  href={`https://github.com/${group.repoOwner}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="hover:text-brand-600 dark:hover:text-brand-400 hover:underline transition-colors"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {activeTheme.author || group.repoOwner}
+                </a>
+              ) : (
+                <span>{activeTheme.author || group.repoOwner}</span>
+              )}
             </div>
           </div>
         </div>
@@ -188,6 +204,22 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({ group, isPinned, onToggleP
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Pin Button */}
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onTogglePin();
+              }}
+              className={`p-2 rounded-lg transition-all ${isPinned
+                ? 'text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/30 opacity-100'
+                : 'text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 opacity-0 group-hover:opacity-100'
+                }`}
+              title={isPinned ? t.unpin : t.pin}
+            >
+              <Pin size={18} className={isPinned ? "fill-current" : ""} />
+            </button>
+
             {activeTheme.homepage && (
               <a
                 href={activeTheme.homepage}

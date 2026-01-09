@@ -109,11 +109,26 @@ const Gallery = () => {
   // Only show initial loading state if we have no cached themes
   const [loadingInitial, setLoadingInitial] = useState(themeGroups.length === 0);
   const [fetchError, setFetchError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sortOption, setSortOption] = useState<SortOption>(SortOption.STARS);
+
+  // Persisted filter states
+  const [searchTerm, setSearchTerm] = useState(() => localStorage.getItem('gallery_search') || '');
+  const [sortOption, setSortOption] = useState<SortOption>(() =>
+    (localStorage.getItem('gallery_sort_option') as SortOption) || SortOption.STARS
+  );
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(() =>
+    (localStorage.getItem('gallery_sort_order') as 'asc' | 'desc') || 'desc'
+  );
+
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
+
+  // Save filter states whenever they change
+  useEffect(() => {
+    localStorage.setItem('gallery_search', searchTerm);
+    localStorage.setItem('gallery_sort_option', sortOption);
+    localStorage.setItem('gallery_sort_order', sortOrder);
+  }, [searchTerm, sortOption, sortOrder]);
 
 
 
@@ -250,37 +265,38 @@ const Gallery = () => {
         if (!isPinnedA && isPinnedB) return 1;
       }
 
+      let comparison = 0;
       switch (sortOption) {
         case SortOption.STARS:
-          // Treat undefined stars as -1 so they go to bottom
-          return (b.stats?.stars || 0) - (a.stats?.stars || 0);
+          comparison = (a.stats?.stars || 0) - (b.stats?.stars || 0);
+          break;
         case SortOption.UPDATED:
-          // Sort by lastCommitAt (pushed_at)
           const dateA = a.stats?.lastCommitAt ? new Date(a.stats.lastCommitAt).getTime() : 0;
           const dateB = b.stats?.lastCommitAt ? new Date(b.stats.lastCommitAt).getTime() : 0;
-          return dateB - dateA;
+          comparison = dateA - dateB;
+          break;
         case SortOption.NAME:
-          // Sort by the title of the first theme in the group
           const titleA = a.themes[0]?.title || '';
           const titleB = b.themes[0]?.title || '';
-          return titleA.localeCompare(titleB);
-        default:
-          return 0;
+          comparison = b.themes[0]?.title ? titleA.localeCompare(titleB) : comparison;
+          break;
       }
+
+      return sortOrder === 'desc' ? -comparison : comparison;
     });
 
     return result;
-  }, [themeGroups, searchTerm, sortOption, pinnedGroups]);
+  }, [themeGroups, searchTerm, sortOption, sortOrder, pinnedGroups]);
 
   // 4. Infinite Scroll Logic
   const visibleGroups = useMemo(() => {
     return processedGroups.slice(0, visibleCount);
   }, [processedGroups, visibleCount]);
 
-  // Reset page when search or sort changes
+  // Reset page size when search, sort option, or sort order changes
   useEffect(() => {
     setVisibleCount(ITEMS_PER_PAGE);
-  }, [searchTerm, sortOption]);
+  }, [searchTerm, sortOption, sortOrder]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -387,6 +403,8 @@ const Gallery = () => {
         setSearchTerm={setSearchTerm}
         sortOption={sortOption}
         setSortOption={setSortOption}
+        sortOrder={sortOrder}
+        setSortOrder={setSortOrder}
         totalThemes={processedGroups.length}
         t={t}
         onRefresh={handleFullRefresh}

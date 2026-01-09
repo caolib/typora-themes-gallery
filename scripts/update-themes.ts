@@ -119,23 +119,30 @@ const fetchGraphQL = async (query: string, token: string) => {
 };
 
 const parseFrontmatter = (text: string): ThemeFrontmatter => {
-    const FRONTMATTER_REGEX = /^---\n([\s\S]*?)\n---/;
-    const match = text.match(FRONTMATTER_REGEX);
+    const lines = text.split(/\r?\n/);
     const data: any = {};
 
-    if (match && match[1]) {
-        const lines = match[1].split('\n');
-        lines.forEach(line => {
-            const parts = line.split(':');
-            if (parts.length >= 2) {
-                const key = parts[0].trim();
-                let value = parts.slice(1).join(':').trim();
-                if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-                    value = value.slice(1, -1);
-                }
-                data[key] = value;
+    // Check if it starts with frontmatter delimiter
+    if (lines[0].trim() !== '---') return data;
+
+    let i = 1;
+    while (i < lines.length && lines[i].trim() !== '---') {
+        const line = lines[i];
+        const colonIndex = line.indexOf(':');
+        if (colonIndex !== -1) {
+            const key = line.slice(0, colonIndex).trim();
+            let value = line.slice(colonIndex + 1).trim();
+
+            // Remove quotes if present
+            if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+                value = value.slice(1, -1);
             }
-        });
+
+            // Basic unescape for YAML-like strings (just : and common chars)
+            // If it's a number, it will still be a string here which is fine
+            data[key] = value;
+        }
+        i++;
     }
     return data as ThemeFrontmatter;
 };
@@ -151,6 +158,7 @@ const getRepoInfoFromUrl = (url?: string): { owner: string; repo: string } | nul
         if (urlObj.hostname !== 'github.com' && urlObj.hostname !== 'www.github.com') return null;
 
         const segments = urlObj.pathname.split('/').filter(Boolean);
+        // Handle cases like github.com/owner/repo/releases/tag/v1
         if (segments.length >= 2) {
             return { owner: segments[0], repo: segments[1] };
         }
@@ -189,14 +197,19 @@ async function main() {
     const validFiles = files.slice(0);
 
     // Parallel fetch for frontmatter is fine as it hits raw.githubusercontent (no API limit usually)
-    const CHUNK_SIZE = 10;
+    const CHUNK_SIZE = 15;
     for (let i = 0; i < validFiles.length; i += CHUNK_SIZE) {
         const chunk = validFiles.slice(i, i + CHUNK_SIZE);
         await Promise.all(chunk.map(async (file) => {
             try {
                 const text = await fetchText(file.download_url);
                 const frontmatter = parseFrontmatter(text);
-                const repoInfo = getRepoInfoFromUrl(frontmatter.homepage);
+
+                // Fallback repo info check: try download URL if homepage fails
+                let repoInfo = getRepoInfoFromUrl(frontmatter.homepage);
+                if (!repoInfo) {
+                    repoInfo = getRepoInfoFromUrl(frontmatter.download);
+                }
 
                 let thumbnail = frontmatter.thumbnail;
                 if (thumbnail && !thumbnail.startsWith('http')) {
@@ -204,11 +217,17 @@ async function main() {
                     thumbnail = `${THUMBNAIL_BASE_URL}${cleanThumbnail}`;
                 }
 
+                // Clean title: remove date prefix (e.g., 2024-03-19-keepstyle -> keepstyle)
+                let title = frontmatter.title;
+                if (!title) {
+                    title = file.name.replace(/\.md$/i, '').replace(/^\d{4}-\d{1,2}-\d{1,2}-/, '');
+                }
+
                 themes.push({
                     ...frontmatter,
                     id: file.name,
                     fileName: file.name,
-                    title: frontmatter.title || file.name.replace(/\.md$/i, ''),
+                    title: title,
                     thumbnail,
                     repoOwner: repoInfo?.owner,
                     repoName: repoInfo?.repo,
@@ -219,19 +238,34 @@ async function main() {
         }));
     }
 
-    console.log(`Parsed ${themes.length} themes. Grouping by repo...`);
+    console.log(`Parsed ${themes.length} themes. Grouping by repo or author...`);
 
     const groups: { [key: string]: ThemeGroup } = {};
     themes.forEach(theme => {
-        const repoOwner = theme.repoOwner || 'unknown';
-        const repoName = theme.repoName || 'unknown';
-        const groupId = `${repoOwner}/${repoName}`;
+        let groupId = '';
+        let owner = theme.repoOwner;
+        let name = theme.repoName;
+
+        if (owner && name) {
+            // Group 1: By GitHub Repository (Best for stats)
+            groupId = `${owner}/${name}`;
+        } else if (theme.author) {
+            // Group 2: By Author (For non-GitHub or broken links)
+            owner = theme.author;
+            name = theme.repoName || 'themes'; // Use 'themes' if no repo name
+            groupId = `author/${theme.author}`;
+        } else {
+            // Group 3: Standalone (Unknown author and no GitHub info)
+            owner = 'unknown';
+            name = theme.title;
+            groupId = `standalone/${theme.id}`;
+        }
 
         if (!groups[groupId]) {
             groups[groupId] = {
                 id: groupId,
-                repoOwner,
-                repoName,
+                repoOwner: owner,
+                repoName: name || 'unknown',
                 themes: [],
                 loadingStats: false,
             };
@@ -240,7 +274,13 @@ async function main() {
     });
 
     const groupList = Object.values(groups);
-    const validGroups = groupList.filter(g => g.repoOwner !== 'unknown' && g.repoName !== 'unknown');
+
+    // Only fetch GraphQL stats for real GitHub repo groups
+    const validGroups = groupList.filter(g =>
+        !g.id.startsWith('author/') &&
+        !g.id.startsWith('standalone/') &&
+        g.repoOwner !== 'unknown'
+    );
 
     console.log(`Identified ${validGroups.length} unique repositories to fetch.`);
 
