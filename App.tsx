@@ -3,9 +3,8 @@ import { Routes, Route } from 'react-router-dom';
 import { ThemeItem, ThemeGroup, SortOption } from './types';
 import { fetchThemesFromStatic } from './services/githubService';
 import { ThemeCard } from './components/ThemeCard';
-import { Controls } from './components/Controls';
 import { ThemeDetail } from './components/ThemeDetail';
-import { Github, Search, AlertCircle, RefreshCw, Loader2, Moon, Sun, Monitor, ArrowUp, Languages, ChevronDown } from 'lucide-react';
+import { Github, Search, AlertCircle, RefreshCw, Loader2, Moon, Sun, Monitor, ArrowUp, Languages, ChevronDown, X, SortAsc, SortDesc } from 'lucide-react';
 import { translations, Language } from './utils/i18n';
 
 const BATCH_SIZE = 5;
@@ -318,98 +317,141 @@ const Gallery = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col transition-colors duration-300">
-      {/* Header */}
-      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 pt-6 pb-4 transition-colors duration-300">
+      {/* Header (Sticky) */}
+      <header className="sticky top-0 z-50 bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-700 py-3 transition-colors duration-300">
         <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-start">
-            <div>
-              <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 dark:text-white tracking-tight">
+          <div className="flex flex-col lg:flex-row gap-4 lg:gap-4 xl:gap-8 items-center justify-between">
+            {/* Logo / Title */}
+            <div className="flex items-center justify-between w-full lg:w-auto flex-shrink-0">
+              <h1 className="text-2xl font-extrabold text-gray-900 dark:text-white tracking-tight flex-shrink-0 cursor-pointer" onClick={scrollToTop}>
                 {t.title.split(' ')[0]} <span className="text-brand-600 dark:text-brand-400">{t.title.split(' ').slice(1).join(' ')}</span>
               </h1>
+
+              {/* Mobile View Toggle/Menu could go here if needed, but keeping it simple for now */}
+              <div className="flex lg:hidden items-center gap-2">
+                <button
+                  onClick={handleFullRefresh}
+                  disabled={isRefreshing}
+                  className="p-2 text-gray-500 dark:text-gray-400 hover:text-brand-600 transition-colors"
+                >
+                  <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
+                </button>
+                <a href="https://github.com/caolib/typora-themes-gallery" target="_blank" rel="noreferrer" className="text-gray-500 dark:text-gray-400">
+                  <Github size={20} />
+                </a>
+              </div>
             </div>
 
-            <div className="flex items-center gap-4">
-              {/* Theme Toggle */}
-              <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
-                <button
-                  onClick={() => setThemeMode('light')}
-                  className={`p-2 rounded-md transition-all ${themeMode === 'light' ? 'bg-white dark:bg-gray-600 shadow text-brand-600 dark:text-brand-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
-                  title="Light Mode"
+            {/* Middle: Search Box */}
+            <div className="w-full lg:max-w-md xl:max-w-2xl flex-grow min-w-0">
+              <div className="relative group">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-brand-500 transition-colors pointer-events-none">
+                  <Search size={18} />
+                </div>
+                <input
+                  type="text"
+                  placeholder={t.searchPlaceholder}
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-9 h-10 bg-gray-100 dark:bg-gray-900/50 border border-transparent focus:border-brand-500 dark:focus:border-brand-500 rounded-full focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:bg-white dark:focus:bg-gray-800 transition-all text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+                />
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Right: Controls & Utilities */}
+            <div className="hidden lg:flex items-center gap-3 flex-shrink-0">
+              {/* Sort & Order */}
+              <div className="flex items-center bg-gray-100 dark:bg-gray-900/50 rounded-lg p-0.5 border border-gray-200 dark:border-gray-700">
+                <select
+                  value={sortOption}
+                  onChange={(e) => setSortOption(e.target.value as SortOption)}
+                  className="bg-transparent pl-3 pr-8 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 focus:outline-none appearance-none cursor-pointer"
                 >
-                  <Sun size={18} />
-                </button>
+                  <option value={SortOption.STARS}>{t.sortStars}</option>
+                  <option value={SortOption.UPDATED}>{t.sortUpdated}</option>
+                  <option value={SortOption.NAME}>{t.sortName}</option>
+                </select>
                 <button
-                  onClick={() => setThemeMode('system')}
-                  className={`p-2 rounded-md transition-all ${themeMode === 'system' ? 'bg-white dark:bg-gray-600 shadow text-brand-600 dark:text-brand-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
-                  title="System Mode"
+                  onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                  className="p-1.5 text-gray-500 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+                  title={sortOrder === 'asc' ? t.sortAsc : t.sortDesc}
                 >
-                  <Monitor size={18} />
-                </button>
-                <button
-                  onClick={() => setThemeMode('dark')}
-                  className={`p-2 rounded-md transition-all ${themeMode === 'dark' ? 'bg-white dark:bg-gray-600 shadow text-brand-600 dark:text-brand-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
-                  title="Dark Mode"
-                >
-                  <Moon size={18} />
+                  {sortOrder === 'asc' ? <SortAsc size={14} /> : <SortDesc size={14} />}
                 </button>
               </div>
 
-              {/* Language Menu */}
+              <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1"></div>
+
+              {/* Refresh */}
+              <button
+                onClick={handleFullRefresh}
+                disabled={isRefreshing}
+                className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-gray-100 dark:hover:bg-gray-900 transition-all"
+                title={t.refreshTooltip}
+              >
+                <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
+              </button>
+
+              {/* Theme Toggle */}
+              <div className="flex items-center bg-gray-100 dark:bg-gray-900/50 rounded-lg p-1 border border-gray-200 dark:border-gray-700">
+                <button
+                  onClick={() => setThemeMode('light')}
+                  className={`p-1.5 rounded-md transition-all ${themeMode === 'light' ? 'bg-white dark:bg-gray-700 shadow-sm text-brand-600 dark:text-brand-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}
+                >
+                  <Sun size={14} />
+                </button>
+                <button
+                  onClick={() => setThemeMode('system')}
+                  className={`p-1.5 rounded-md transition-all ${themeMode === 'system' ? 'bg-white dark:bg-gray-700 shadow-sm text-brand-600 dark:text-brand-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}
+                >
+                  <Monitor size={14} />
+                </button>
+                <button
+                  onClick={() => setThemeMode('dark')}
+                  className={`p-1.5 rounded-md transition-all ${themeMode === 'dark' ? 'bg-white dark:bg-gray-700 shadow-sm text-brand-600 dark:text-brand-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}
+                >
+                  <Moon size={14} />
+                </button>
+              </div>
+
+              {/* Language */}
               <div className="relative" ref={langMenuRef}>
                 <button
                   onClick={() => setShowLangMenu(!showLangMenu)}
-                  className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors flex items-center gap-2"
-                  title="Language"
+                  className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 transition-colors flex items-center gap-1"
                 >
-                  <Languages size={20} />
-                  <span className="sr-only">{lang === 'en' ? 'ZH' : 'EN'}</span>
-                  <ChevronDown size={14} className="text-gray-400" />
+                  <Languages size={18} />
+                  <ChevronDown size={12} className="opacity-50" />
                 </button>
 
                 {showLangMenu && (
-                  <div className="absolute right-0 mt-2 w-40 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
-                    <button
-                      onClick={() => { setLang('en'); setShowLangMenu(false); }}
-                      className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm text-gray-700 dark:text-gray-200"
-                    >
-                      English
-                    </button>
-                    <button
-                      onClick={() => { setLang('zh'); setShowLangMenu(false); }}
-                      className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm text-gray-700 dark:text-gray-200"
-                    >
-                      简体中文
-                    </button>
+                  <div className="absolute right-0 mt-2 w-32 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
+                    <button onClick={() => { setLang('en'); setShowLangMenu(false); }} className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-xs">English</button>
+                    <button onClick={() => { setLang('zh'); setShowLangMenu(false); }} className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-xs">简体中文</button>
                   </div>
                 )}
               </div>
 
-              <a
-                href="https://github.com/caolib/typora-themes-gallery"
-                target="_blank"
-                rel="noreferrer"
-                className="hidden sm:flex items-center gap-2 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-              >
-                <Github size={24} />
+              <a href="https://github.com/caolib/typora-themes-gallery" target="_blank" rel="noreferrer" className="text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
+                <Github size={20} />
               </a>
             </div>
           </div>
+
+          {/* Status info (compact) */}
+          <div className="hidden lg:flex justify-end mt-1 px-4 text-[10px] text-gray-400 dark:text-gray-500 font-medium tracking-wider uppercase">
+            {processedGroups.length} {t.themesCount}
+          </div>
         </div>
       </header>
-
-      {/* Controls (Sticky) */}
-      <Controls
-        searchTerm={searchTerm}
-        setSearchTerm={setSearchTerm}
-        sortOption={sortOption}
-        setSortOption={setSortOption}
-        sortOrder={sortOrder}
-        setSortOrder={setSortOrder}
-        totalThemes={processedGroups.length}
-        t={t}
-        onRefresh={handleFullRefresh}
-        refreshing={isRefreshing}
-      />
 
       {/* Main Grid */}
       <main className="flex-grow max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
