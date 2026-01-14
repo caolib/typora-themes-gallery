@@ -9,23 +9,14 @@ import { translations, Language } from './utils/i18n';
 
 const BATCH_SIZE = 5;
 const DELAY_MS = 1000; // Delay between batches to be nice to API
-const CACHE_KEY = 'typora_theme_explorer_cache_v2'; // Changed cache key for new structure
 const ITEMS_PER_PAGE = 15; // Number of items to load per scroll
 
 type ThemeMode = 'light' | 'dark' | 'system';
 
 // The main gallery content component
 const Gallery = () => {
-  // Initialize state from local storage if available
-  const [themeGroups, setThemeGroups] = useState<ThemeGroup[]>(() => {
-    try {
-      const cached = localStorage.getItem(CACHE_KEY);
-      return cached ? JSON.parse(cached) : [];
-    } catch (e) {
-      console.warn("Failed to load cache", e);
-      return [];
-    }
-  });
+  // Initialize state
+  const [themeGroups, setThemeGroups] = useState<ThemeGroup[]>([]);
 
   // Theme State
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
@@ -39,14 +30,20 @@ const Gallery = () => {
 
   const t = translations[lang];
 
-  // Language menu state & outside-click handler
+  // Language & Sort menu state
   const [showLangMenu, setShowLangMenu] = useState(false);
+  const [showSortMenu, setShowSortMenu] = useState(false);
   const langMenuRef = useRef<HTMLDivElement>(null);
+  const sortMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (langMenuRef.current && !langMenuRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (langMenuRef.current && !langMenuRef.current.contains(target)) {
         setShowLangMenu(false);
+      }
+      if (sortMenuRef.current && !sortMenuRef.current.contains(target)) {
+        setShowSortMenu(false);
       }
     };
 
@@ -57,17 +54,29 @@ const Gallery = () => {
   // Apply Theme Effect
   useEffect(() => {
     const root = window.document.documentElement;
-    const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
-    const isDark = themeMode === 'dark' || (themeMode === 'system' && systemDark);
+    const applyTheme = () => {
+      const systemDark = mediaQuery.matches;
+      const isDark = themeMode === 'dark' || (themeMode === 'system' && systemDark);
 
-    if (isDark) {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
+      if (isDark) {
+        root.classList.add('dark');
+      } else {
+        root.classList.remove('dark');
+      }
+    };
 
+    applyTheme();
+
+    const listener = () => {
+      if (themeMode === 'system') applyTheme();
+    };
+
+    mediaQuery.addEventListener('change', listener);
     localStorage.setItem('theme_mode', themeMode);
+
+    return () => mediaQuery.removeEventListener('change', listener);
   }, [themeMode]);
 
   // Persist Language
@@ -129,14 +138,6 @@ const Gallery = () => {
     localStorage.setItem('gallery_sort_order', sortOrder);
   }, [searchTerm, sortOption, sortOrder]);
 
-
-
-  // Save themes to cache whenever they change
-  useEffect(() => {
-    if (themeGroups.length > 0) {
-      localStorage.setItem(CACHE_KEY, JSON.stringify(themeGroups));
-    }
-  }, [themeGroups]);
 
   // Back to Top Scroll Listener
   useEffect(() => {
@@ -319,7 +320,7 @@ const Gallery = () => {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col transition-colors duration-300">
       {/* Header (Sticky) */}
       <header className="sticky top-0 z-50 bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-700 py-3 transition-colors duration-300">
-        <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[125rem] mx-auto px-4 sm:px-8 lg:px-12">
           <div className="flex flex-col lg:flex-row gap-4 lg:gap-4 xl:gap-8 items-center justify-between">
             {/* Logo / Title */}
             <div className="flex items-center justify-between w-full lg:w-auto flex-shrink-0">
@@ -370,15 +371,41 @@ const Gallery = () => {
             <div className="hidden lg:flex items-center gap-3 flex-shrink-0">
               {/* Sort & Order */}
               <div className="flex items-center bg-gray-100 dark:bg-gray-900/50 rounded-lg p-0.5 border border-gray-200 dark:border-gray-700">
-                <select
-                  value={sortOption}
-                  onChange={(e) => setSortOption(e.target.value as SortOption)}
-                  className="bg-transparent pl-3 pr-8 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 focus:outline-none appearance-none cursor-pointer"
-                >
-                  <option value={SortOption.STARS}>{t.sortStars}</option>
-                  <option value={SortOption.UPDATED}>{t.sortUpdated}</option>
-                  <option value={SortOption.NAME}>{t.sortName}</option>
-                </select>
+                <div className="relative" ref={sortMenuRef}>
+                  <button
+                    onClick={() => setShowSortMenu(!showSortMenu)}
+                    className="flex items-center gap-1.5 pl-3 pr-2 py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+                  >
+                    {sortOption === SortOption.STARS ? t.sortStars : sortOption === SortOption.UPDATED ? t.sortUpdated : t.sortName}
+                    <ChevronDown size={12} className={`opacity-50 transition-transform duration-200 ${showSortMenu ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {showSortMenu && (
+                    <div className="absolute left-0 mt-2 w-36 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50 animate-in fade-in slide-in-from-top-1 duration-200">
+                      <button
+                        onClick={() => { setSortOption(SortOption.STARS); setShowSortMenu(false); }}
+                        className={`w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-xs transition-colors ${sortOption === SortOption.STARS ? 'text-brand-600 dark:text-brand-400 font-bold' : 'text-gray-700 dark:text-gray-200'}`}
+                      >
+                        {t.sortStars}
+                      </button>
+                      <button
+                        onClick={() => { setSortOption(SortOption.UPDATED); setShowSortMenu(false); }}
+                        className={`w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-xs transition-colors ${sortOption === SortOption.UPDATED ? 'text-brand-600 dark:text-brand-400 font-bold' : 'text-gray-700 dark:text-gray-200'}`}
+                      >
+                        {t.sortUpdated}
+                      </button>
+                      <button
+                        onClick={() => { setSortOption(SortOption.NAME); setShowSortMenu(false); }}
+                        className={`w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-xs transition-colors ${sortOption === SortOption.NAME ? 'text-brand-600 dark:text-brand-400 font-bold' : 'text-gray-700 dark:text-gray-200'}`}
+                      >
+                        {t.sortName}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="w-px h-3 bg-gray-300 dark:bg-gray-600 mx-0.5"></div>
+
                 <button
                   onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
                   className="p-1.5 text-gray-500 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
@@ -434,8 +461,8 @@ const Gallery = () => {
 
                 {showLangMenu && (
                   <div className="absolute right-0 mt-2 w-32 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
-                    <button onClick={() => { setLang('en'); setShowLangMenu(false); }} className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-xs">English</button>
-                    <button onClick={() => { setLang('zh'); setShowLangMenu(false); }} className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-xs">简体中文</button>
+                    <button onClick={() => { setLang('en'); setShowLangMenu(false); }} className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-xs text-gray-700 dark:text-gray-200">English</button>
+                    <button onClick={() => { setLang('zh'); setShowLangMenu(false); }} className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-xs text-gray-700 dark:text-gray-200">简体中文</button>
                   </div>
                 )}
               </div>
@@ -454,10 +481,10 @@ const Gallery = () => {
       </header>
 
       {/* Main Grid */}
-      <main className="flex-grow max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+      <main className="flex-grow max-w-[125rem] mx-auto px-4 sm:px-8 lg:px-12 py-8 w-full">
         {loadingInitial ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-pulse">
-            {[...Array(6)].map((_, i) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 gap-6 animate-pulse">
+            {[...Array(12)].map((_, i) => (
               <div key={i} className="bg-white dark:bg-gray-800 rounded-xl h-80 shadow-sm border border-gray-100 dark:border-gray-700"></div>
             ))}
           </div>
@@ -483,7 +510,7 @@ const Gallery = () => {
           <>
             {visibleGroups.length > 0 ? (
               <>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6 gap-6">
                   {visibleGroups.map(group => (
                     <ThemeCard
                       key={group.id}
@@ -516,7 +543,7 @@ const Gallery = () => {
 
       {/* Footer */}
       <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-8 mt-auto transition-colors duration-300">
-        <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center text-sm text-gray-500 dark:text-gray-400">
+        <div className="max-w-[125rem] mx-auto px-4 sm:px-8 lg:px-12 flex flex-col sm:flex-row justify-between items-center text-sm text-gray-500 dark:text-gray-400">
           <div className="flex items-center gap-2 mb-4 sm:mb-0">
             <p>{t.footerDisclaimer}</p>
           </div>

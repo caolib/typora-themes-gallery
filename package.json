@@ -10,6 +10,7 @@
     "update:themes": "tsx scripts/update-themes.ts"
   },
   "dependencies": {
+    "@caolib/time-util": "^1.0.0",
     "dotenv": "^17.2.3",
     "lucide-react": "^0.555.0",
     "react": "^19.2.3",

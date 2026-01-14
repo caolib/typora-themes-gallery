@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Star, Calendar, Download, Pin, ExternalLink, Github, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ThemeGroup } from '../types';
 import { translations } from '../utils/i18n';
+import { formatDate, formatDateCustom } from '@caolib/time-util';
 
 interface ThemeCardProps {
   group: ThemeGroup;
@@ -27,6 +28,16 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({ group, isPinned, onToggleP
   const activeIndex = themes.findIndex(t => t.id === activeThemeId);
 
   const [paused, setPaused] = useState(false);
+
+  // Helper to show relative time for recent updates and pure date for older ones
+  const getSmartDate = (dateStr?: string) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    const diff = Date.now() - date.getTime();
+    const oneMonth = 30 * 24 * 60 * 60 * 1000;
+    if (diff < oneMonth) return formatDate(dateStr);
+    return formatDateCustom(dateStr, 'yyyy.MM.dd');
+  };
 
   // Auto-rotate themes when there are multiple previews
   useEffect(() => {
@@ -58,19 +69,17 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({ group, isPinned, onToggleP
   }, [matchedThemeId, themes]);
 
   return (
-    <div className={`group relative bg-white dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-xl transition-all duration-300 border flex flex-col overflow-hidden ${isPinned ? 'border-brand-200 dark:border-brand-900 ring-1 ring-brand-100 dark:ring-brand-900/50' : 'border-gray-200 dark:border-gray-700'
+    <div className={`group relative aspect-[5/4] bg-white dark:bg-gray-800 rounded-2xl shadow-sm hover:shadow-2xl transition-all duration-500 border overflow-hidden ${isPinned ? 'border-brand-300 dark:border-brand-800 ring-2 ring-brand-100/50 dark:ring-brand-900/30' : 'border-gray-200 dark:border-gray-700'
       }`}>
 
-      {/* Image Carousel Area */}
-      <Link
-        to={`/theme/${encodeURIComponent(group.id)}?variant=${encodeURIComponent(activeThemeId)}`}
-        className="relative aspect-[16/10] overflow-hidden bg-gray-100 dark:bg-gray-900 block cursor-pointer"
+      {/* Full Background Image Carousel */}
+      <div
+        className="absolute inset-0 z-0 bg-gray-100 dark:bg-gray-900"
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
       >
-        {/* Sliding Container */}
         <div
-          className="flex h-full transition-transform duration-500 ease-out"
+          className="flex h-full transition-transform duration-700 cubic-bezier(0.4, 0, 0.2, 1)"
           style={{ transform: `translateX(-${activeIndex * 100}%)` }}
         >
           {themes.map((theme) => (
@@ -78,169 +87,134 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({ group, isPinned, onToggleP
               <img
                 src={theme.thumbnail}
                 alt={`${theme.title} preview`}
-                className="w-full h-full object-cover object-top"
+                className="w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-110"
                 loading="lazy"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = 'https://picsum.photos/400/250?grayscale';
+                  (e.target as HTMLImageElement).src = 'https://picsum.photos/500/400?grayscale';
                 }}
               />
             </div>
           ))}
         </div>
+      </div>
 
-
-
-
-
-        {/* Theme Variants Selector (Overlay) */}
-        {themes.length > 1 && (
-          <div className="absolute bottom-0 left-0 right-0 px-2 py-3 bg-gradient-to-t from-black/90 to-transparent pt-12 flex items-center justify-between gap-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-
+      {/* Variant Selectors (Targeted Overlay - Moved outside for better interaction) */}
+      {themes.length > 1 && (
+        <div className="absolute top-0 left-0 right-0 p-2 bg-gradient-to-b from-black/60 to-transparent z-30 opacity-0 group-hover:opacity-100 transition-all duration-300 transform -translate-y-1 group-hover:translate-y-0">
+          <div className="flex items-center justify-between gap-1 pointer-events-none">
             <button
-              className="p-1 rounded-full bg-black/30 hover:bg-black/60 text-white/90 transition-colors backdrop-blur-sm flex-shrink-0"
-              onClick={(e) => {
-                e.preventDefault(); e.stopPropagation();
-                scrollContainerRef.current?.scrollBy({ left: -100, behavior: 'smooth' });
-              }}
+              className="p-0.5 rounded-full bg-black/20 hover:bg-black/40 text-white/90 backdrop-blur-md transition-colors pointer-events-auto"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); scrollContainerRef.current?.scrollBy({ left: -60, behavior: 'smooth' }); }}
             >
-              <ChevronLeft size={16} />
+              <ChevronLeft size={12} />
             </button>
-
-            <div
-              ref={scrollContainerRef}
-              className="flex gap-2 overflow-x-auto no-scrollbar scroll-smooth px-1 py-1"
-            >
+            <div ref={scrollContainerRef} className="flex gap-1 overflow-x-auto no-scrollbar px-1 py-0.5 scroll-smooth pointer-events-auto">
               {themes.map((t) => (
                 <button
                   key={t.id}
                   onMouseEnter={() => changeTheme(t.id)}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    changeTheme(t.id);
-                  }}
-                  className={`flex-shrink-0 w-10 h-10 rounded-md overflow-hidden border-2 transition-all shadow-sm ${activeThemeId === t.id
-                    ? 'border-brand-400 scale-110 ring-2 ring-brand-400/50'
-                    : 'border-white/30 opacity-70 hover:opacity-100 hover:border-white/80'
-                    }`}
-                  title={t.title}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); changeTheme(t.id); }}
+                  className={`flex-shrink-0 w-6 h-6 rounded-md overflow-hidden border transition-all ${activeThemeId === t.id ? 'border-brand-400 scale-105' : 'border-white/20 opacity-60'}`}
                 >
-                  {t.thumbnail ? (
-                    <img src={t.thumbnail} alt={t.title} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[10px] text-gray-500 dark:text-gray-400">
-                      {(t.title || 'U').charAt(0)}
-                    </div>
-                  )}
+                  <img src={t.thumbnail} alt="" className="w-full h-full object-cover" />
                 </button>
               ))}
             </div>
-
             <button
-              className="p-1 rounded-full bg-black/30 hover:bg-black/60 text-white/90 transition-colors backdrop-blur-sm flex-shrink-0"
-              onClick={(e) => {
-                e.preventDefault(); e.stopPropagation();
-                scrollContainerRef.current?.scrollBy({ left: 100, behavior: 'smooth' });
-              }}
+              className="p-0.5 rounded-full bg-black/20 hover:bg-black/40 text-white/90 backdrop-blur-md transition-colors pointer-events-auto"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); scrollContainerRef.current?.scrollBy({ left: 60, behavior: 'smooth' }); }}
             >
-              <ChevronRight size={16} />
+              <ChevronRight size={12} />
             </button>
-          </div>
-        )}
-      </Link>
-
-      {/* Content */}
-      <div className="p-4 flex flex-col flex-grow">
-        <div className="flex justify-between items-start mb-2">
-          <div>
-            <h3 className="font-bold text-lg text-gray-900 dark:text-white line-clamp-1" title={activeTheme.title}>
-              {/* Clickable Title for Detail View */}
-              <Link
-                to={`/theme/${encodeURIComponent(group.id)}?variant=${encodeURIComponent(activeThemeId)}`}
-                className="hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
-              >
-                {activeTheme.title}
-              </Link>
-            </h3>
-            <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1">
-              {group.repoOwner !== 'unknown' && !group.id.startsWith('author/') && !group.id.startsWith('standalone/') ? (
-                <a
-                  href={`https://github.com/${group.repoOwner}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="hover:text-brand-600 dark:hover:text-brand-400 hover:underline transition-colors"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {activeTheme.author || group.repoOwner}
-                </a>
-              ) : (
-                <span>{activeTheme.author || group.repoOwner}</span>
-              )}
-            </div>
           </div>
         </div>
+      )}
 
-        {activeTheme.description && (
-          <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2 mb-4 flex-grow" title={activeTheme.description}>
-            {activeTheme.description}
-          </p>
-        )}
+      {/* Main Link to Detail */}
+      <Link
+        to={`/theme/${encodeURIComponent(group.id)}?variant=${encodeURIComponent(activeThemeId)}`}
+        className="absolute inset-0 z-10"
+      />
 
-        {/* Stats & Actions */}
-        <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-700 mt-auto">
-          <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
-            <div className="flex items-center gap-1" title="GitHub Stars">
-              <Star size={14} className="text-amber-400 fill-amber-400" />
-              <span className="font-medium">
-                {loadingStats ? '-' : (stats?.stars?.toLocaleString() || '0')}
-              </span>
-            </div>
-            <div className="flex items-center gap-1" title="Last Updated">
-              <Calendar size={14} />
-              <span>
-                {loadingStats ? '-' : (stats?.lastCommitAt ? new Date(stats.lastCommitAt).toLocaleDateString() : t.unknown)}
-              </span>
+      {/* Floating Info Card */}
+      <div className="absolute bottom-2 left-2 z-20 pointer-events-none flex justify-start w-full">
+        <div className="bg-black/60 backdrop-blur-xl rounded-xl p-3 shadow-2xl border border-white/10 w-auto min-w-[55%] max-w-[calc(100%-24px)] pointer-events-auto">
+          <div className="flex items-center justify-between gap-3 min-w-0">
+            <span className="font-medium text-[10px] text-white whitespace-nowrap overflow-hidden text-ellipsis flex-1 min-w-0">
+              {activeTheme.title}
+            </span>
+            
+            {/* Minimal Stats (Normal State Only) */}
+            <div className="flex items-center gap-2 text-[10px] text-gray-300 group-hover:hidden transition-all duration-700 font-medium flex-shrink-0">
+               <div className="flex items-center gap-0.5 h-full">
+                  <Star size={10} className="text-amber-500 fill-amber-500 -translate-y-[0.5px]" />
+                  <span className="leading-none">{stats?.stars || 0}</span>
+               </div>
+               <div className="flex items-center gap-0.5">
+                  <span className="whitespace-nowrap leading-none">{getSmartDate(stats?.lastCommitAt)}</span>
+               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* Pin Button */}
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onTogglePin();
-              }}
-              className={`p-2 rounded-lg transition-all ${isPinned
-                ? 'text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/30 opacity-100'
-                : 'text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 opacity-0 group-hover:opacity-100'
-                }`}
-              title={isPinned ? t.unpin : t.pin}
-            >
-              <Pin size={18} className={isPinned ? "fill-current" : ""} />
-            </button>
+          {/* Expanded Menu (Hover Only) */}
+          <div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)]">
+            <div className="overflow-hidden min-w-0">
+              <div className="pt-2 mt-2 border-t border-white/10 min-w-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 delay-100">
+                <div className="flex items-center justify-between gap-4 text-[10px] text-gray-400 mb-2">
+                  <a 
+                    href={`https://github.com/${group.repoOwner}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="truncate font-medium hover:text-brand-400 transition-colors"
+                  >
+                    {activeTheme.author || group.repoOwner}
+                  </a>
+                  <span className="opacity-60 whitespace-nowrap leading-none">{stats?.lastCommitAt ? getSmartDate(stats.lastCommitAt) : t.unknown}</span>
+                </div>
+                
+                {activeTheme.description && (
+                  <p className="text-[10px] text-gray-300 line-clamp-1 mb-3 leading-relaxed italic">
+                    {activeTheme.description}
+                  </p>
+                )}
 
-            {activeTheme.homepage && (
-              <a
-                href={activeTheme.homepage}
-                target="_blank"
-                rel="noreferrer"
-                className="p-2 text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 rounded-lg transition-colors"
-                title={t.viewHomepage}
-              >
-                <Github size={18} />
-              </a>
-            )}
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-1 text-[10px] font-bold text-amber-500 flex-shrink-0">
+                    <Star size={12} className="fill-current -translate-y-[0.5px]" />
+                    <span className="leading-none">{stats?.stars?.toLocaleString() || '0'}</span>
+                  </div>
 
-            {activeTheme.download && (
-              <a
-                href={activeTheme.download}
-                className="p-2 text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 rounded-lg transition-colors"
-                title={t.download}
-              >
-                <Download size={18} />
-              </a>
-            )}
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); onTogglePin(); }}
+                      className={`p-1 rounded-lg transition-colors ${isPinned ? 'text-brand-400 bg-brand-400/10' : 'text-gray-400 hover:text-brand-400'}`}
+                    >
+                      <Pin size={14} className={isPinned ? "fill-current" : ""} />
+                    </button>
+                    {activeTheme.homepage && (
+                      <a
+                        href={activeTheme.homepage}
+                        target="_blank" rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="p-1 text-gray-400 hover:text-white transition-colors"
+                      >
+                        <Github size={14} />
+                      </a>
+                    )}
+                    {activeTheme.download && (
+                      <a
+                        href={activeTheme.download}
+                        onClick={(e) => e.stopPropagation()}
+                        className="p-1 text-brand-400 transition-colors"
+                      >
+                        <Download size={14} />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

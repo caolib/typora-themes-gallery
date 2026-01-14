@@ -4,9 +4,10 @@ import ReactMarkdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
-import { ArrowLeft, Loader2, AlertCircle, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Loader2, AlertCircle, ExternalLink, Star, Calendar, User } from 'lucide-react';
 import { fetchThemesFromStatic } from '../services/githubService';
 import { ThemeGroup } from '../types';
+import { formatDate, formatDateCustom } from '@caolib/time-util';
 
 export const ThemeDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -78,6 +79,15 @@ export const ThemeDetail: React.FC = () => {
         }
     }, [id]);
 
+    const getSmartDate = (dateStr?: string) => {
+        if (!dateStr) return '';
+        const date = new Date(dateStr);
+        const diff = Date.now() - date.getTime();
+        const oneMonth = 30 * 24 * 60 * 60 * 1000;
+        if (diff < oneMonth) return formatDate(dateStr);
+        return formatDateCustom(dateStr, 'yyyy.MM.dd');
+    };
+
     if (loading) {
         return (
             <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -107,16 +117,38 @@ export const ThemeDetail: React.FC = () => {
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
             {/* Header */}
             <header className="sticky top-0 z-10 bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-700 px-4 py-4 sm:px-6 lg:px-8">
-                <div className="max-w-5xl mx-auto flex items-center justify-between">
+                <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
                     <button
                         onClick={() => navigate('/')}
-                        className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-brand-600 dark:hover:text-brand-400 transition"
+                        className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-brand-600 dark:hover:text-brand-400 transition flex-shrink-0"
                     >
                         <ArrowLeft size={20} />
-                        <span className="font-medium">Back</span>
+                        <span className="font-medium hidden sm:inline">Back</span>
                     </button>
 
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3 sm:gap-6 text-sm text-gray-500 dark:text-gray-400 overflow-hidden">
+                        <a
+                            href={`https://github.com/${group.repoOwner}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center gap-1.5 hover:text-brand-600 dark:hover:text-brand-400 transition truncate"
+                        >
+                            <User size={16} />
+                            <span className="font-medium">{group.repoOwner}</span>
+                        </a>
+
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <Star size={16} className="text-amber-500 fill-amber-500" />
+                            <span className="font-medium">{group.stats?.stars?.toLocaleString() || 0}</span>
+                        </div>
+
+                        <div className="hidden md:flex items-center gap-1.5 flex-shrink-0">
+                            <Calendar size={16} />
+                            <span>{getSmartDate(group.stats?.lastCommitAt)}</span>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-4 flex-shrink-0">
                         <a
                             href={group.themes[0].homepage}
                             target="_blank"
@@ -124,7 +156,7 @@ export const ThemeDetail: React.FC = () => {
                             className="flex items-center gap-2 text-sm font-medium text-brand-600 dark:text-brand-400 hover:underline"
                         >
                             <ExternalLink size={16} />
-                            View on GitHub
+                            <span className="hidden sm:inline">View on GitHub</span>
                         </a>
                     </div>
                 </div>
