@@ -138,41 +138,41 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({ group, isPinned, onToggleP
 
       {/* Floating Info Card */}
       <div className="absolute bottom-2 left-2 z-20 pointer-events-none flex justify-start w-full">
-        <div className="bg-black/60 backdrop-blur-xl rounded-xl p-3 shadow-2xl border border-white/10 w-auto min-w-[55%] max-w-[calc(100%-24px)] pointer-events-auto">
+        <div className="group/info bg-black/60 backdrop-blur-xl rounded-xl p-3 shadow-2xl border border-white/10 w-auto min-w-[55%] max-w-[calc(100%-24px)] pointer-events-auto">
           <div className="flex items-center justify-between gap-3 min-w-0">
             <span className="font-medium text-[10px] text-white whitespace-nowrap overflow-hidden text-ellipsis flex-1 min-w-0">
               {activeTheme.title}
             </span>
-            
+
             {/* Minimal Stats (Normal State Only) */}
-            <div className="flex items-center gap-2 text-[10px] text-gray-300 group-hover:hidden transition-all duration-700 font-medium flex-shrink-0">
-               <div className="flex items-center gap-0.5 h-full">
-                  <Star size={10} className="text-amber-500 fill-amber-500 -translate-y-[0.5px]" />
-                  <span className="leading-none">{stats?.stars || 0}</span>
-               </div>
-               <div className="flex items-center gap-0.5">
-                  <span className="whitespace-nowrap leading-none">{getSmartDate(stats?.lastCommitAt)}</span>
-               </div>
+            <div className="flex items-center gap-2 text-[10px] text-gray-300 group-hover/info:hidden transition-all duration-700 font-medium flex-shrink-0">
+              <div className="flex items-center gap-0.5 h-full">
+                <Star size={10} className="text-amber-500 fill-amber-500 -translate-y-[0.5px]" />
+                <span className="leading-none">{stats?.stars || 0}</span>
+              </div>
+              <div className="flex items-center gap-0.5">
+                <span className="whitespace-nowrap leading-none">{getSmartDate(stats?.lastCommitAt)}</span>
+              </div>
             </div>
           </div>
 
           {/* Expanded Menu (Hover Only) */}
-          <div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)]">
+          <div className="grid grid-rows-[0fr] group-hover/info:grid-rows-[1fr] transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)]">
             <div className="overflow-hidden min-w-0">
-              <div className="pt-2 mt-2 border-t border-white/10 min-w-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 delay-100">
+              <div className="pt-2 mt-2 border-t border-white/10 min-w-0 opacity-0 group-hover/info:opacity-100 transition-opacity duration-700 delay-100">
                 <div className="flex items-center justify-between gap-4 text-[10px] text-gray-400 mb-2">
-                  <a 
+                  <a
                     href={`https://github.com/${group.repoOwner}`}
                     target="_blank"
                     rel="noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="truncate font-medium hover:text-brand-400 transition-colors"
+                    className="truncate font-medium hover:text-white hover:bg-white/10 px-1.5 py-0.5 -ml-1.5 rounded-md transition-all"
                   >
                     {activeTheme.author || group.repoOwner}
                   </a>
                   <span className="opacity-60 whitespace-nowrap leading-none">{stats?.lastCommitAt ? getSmartDate(stats.lastCommitAt) : t.unknown}</span>
                 </div>
-                
+
                 {activeTheme.description && (
                   <p className="text-[10px] text-gray-300 line-clamp-1 mb-3 leading-relaxed italic">
                     {activeTheme.description}
@@ -188,7 +188,8 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({ group, isPinned, onToggleP
                   <div className="flex items-center gap-1">
                     <button
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); onTogglePin(); }}
-                      className={`p-1 rounded-lg transition-colors ${isPinned ? 'text-brand-400 bg-brand-400/10' : 'text-gray-400 hover:text-brand-400'}`}
+                      className={`p-1.5 rounded-lg transition-all ${isPinned ? 'text-brand-400 bg-brand-400/10' : 'text-gray-400 hover:text-brand-400 hover:bg-white/10'}`}
+                      title={isPinned ? t.unpin : t.pin}
                     >
                       <Pin size={14} className={isPinned ? "fill-current" : ""} />
                     </button>
@@ -197,7 +198,8 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({ group, isPinned, onToggleP
                         href={activeTheme.homepage}
                         target="_blank" rel="noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="p-1 text-gray-400 hover:text-white transition-colors"
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-all"
+                        title={t.viewGithub}
                       >
                         <Github size={14} />
                       </a>
@@ -206,7 +208,8 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({ group, isPinned, onToggleP
                       <a
                         href={activeTheme.download}
                         onClick={(e) => e.stopPropagation()}
-                        className="p-1 text-brand-400 transition-colors"
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-brand-400 hover:bg-white/10 transition-all"
+                        title={t.download}
                       >
                         <Download size={14} />
                       </a>

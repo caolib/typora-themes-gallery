@@ -9,26 +9,32 @@ import { translations, Language } from './utils/i18n';
 
 const BATCH_SIZE = 5;
 const DELAY_MS = 1000; // Delay between batches to be nice to API
+const CACHE_KEY = 'typora_theme_explorer_cache_v2'; // Changed cache key for new structure
 const ITEMS_PER_PAGE = 15; // Number of items to load per scroll
 
 type ThemeMode = 'light' | 'dark' | 'system';
 
 // The main gallery content component
-const Gallery = () => {
-  // Initialize state
-  const [themeGroups, setThemeGroups] = useState<ThemeGroup[]>([]);
+interface GalleryProps {
+  themeMode: ThemeMode;
+  setThemeMode: (mode: ThemeMode) => void;
+  lang: Language;
+  setLang: (lang: Language) => void;
+}
 
-  // Theme State
-  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
-    return (localStorage.getItem('theme_mode') as ThemeMode) || 'system';
-  });
-
-  // Language State
-  const [lang, setLang] = useState<Language>(() => {
-    return (localStorage.getItem('app_lang') as Language) || 'zh';
-  });
-
+const Gallery: React.FC<GalleryProps> = ({ themeMode, setThemeMode, lang, setLang }) => {
   const t = translations[lang];
+
+  // Initialize state from local storage if available
+  const [themeGroups, setThemeGroups] = useState<ThemeGroup[]>(() => {
+    try {
+      const cached = localStorage.getItem(CACHE_KEY);
+      return cached ? JSON.parse(cached) : [];
+    } catch (e) {
+      console.warn("Failed to load cache", e);
+      return [];
+    }
+  });
 
   // Language & Sort menu state
   const [showLangMenu, setShowLangMenu] = useState(false);
@@ -50,44 +56,6 @@ const Gallery = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  // Apply Theme Effect
-  useEffect(() => {
-    const root = window.document.documentElement;
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-
-    const applyTheme = () => {
-      const systemDark = mediaQuery.matches;
-      const isDark = themeMode === 'dark' || (themeMode === 'system' && systemDark);
-
-      if (isDark) {
-        root.classList.add('dark');
-      } else {
-        root.classList.remove('dark');
-      }
-    };
-
-    applyTheme();
-
-    const listener = () => {
-      if (themeMode === 'system') applyTheme();
-    };
-
-    mediaQuery.addEventListener('change', listener);
-    localStorage.setItem('theme_mode', themeMode);
-
-    return () => mediaQuery.removeEventListener('change', listener);
-  }, [themeMode]);
-
-  // Persist Language
-  useEffect(() => {
-    localStorage.setItem('app_lang', lang);
-  }, [lang]);
-
-  const toggleLanguage = () => {
-    setLang(prev => prev === 'en' ? 'zh' : 'en');
-  };
-
 
   // Pin State
   const [pinnedGroups, setPinnedGroups] = useState<string[]>(() => {
@@ -568,9 +536,67 @@ const Gallery = () => {
 }
 
 export default function App() {
+  // Theme State
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
+    return (localStorage.getItem('theme_mode') as ThemeMode) || 'system';
+  });
+
+  // Language State
+  const [lang, setLang] = useState<Language>(() => {
+    return (localStorage.getItem('app_lang') as Language) || 'zh';
+  });
+
+  // Apply Theme Effect & Listen to System Changes
+  useEffect(() => {
+    const root = window.document.documentElement;
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+    const applyTheme = () => {
+      const systemDark = mediaQuery.matches;
+      const isDark = themeMode === 'dark' || (themeMode === 'system' && systemDark);
+
+      if (isDark) {
+        root.classList.add('dark');
+      } else {
+        root.classList.remove('dark');
+      }
+    };
+
+    applyTheme();
+
+    // Listen for system theme changes
+    const listener = () => {
+      if (themeMode === 'system') {
+        applyTheme();
+      }
+    };
+
+    // Use addEventListener if available, fallback to addListener for older browsers
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', listener);
+    } else {
+      mediaQuery.addListener(listener);
+    }
+
+    localStorage.setItem('theme_mode', themeMode);
+
+    return () => {
+      if (mediaQuery.removeEventListener) {
+        mediaQuery.removeEventListener('change', listener);
+      } else {
+        mediaQuery.removeListener(listener);
+      }
+    };
+  }, [themeMode]);
+
+  // Persist Language
+  useEffect(() => {
+    localStorage.setItem('app_lang', lang);
+  }, [lang]);
+
   return (
     <Routes>
-      <Route path="/" element={<Gallery />} />
+      <Route path="/" element={<Gallery themeMode={themeMode} setThemeMode={setThemeMode} lang={lang} setLang={setLang} />} />
       <Route path="/theme/:id" element={<ThemeDetail />} />
     </Routes>
   );
