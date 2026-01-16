@@ -28,8 +28,8 @@ export const ThemeDetail: React.FC = () => {
         const loadTheme = async () => {
             try {
                 setLoading(true);
-                // We need the theme data to know the filename
-                const groups = await fetchThemesFromStatic();
+                // Use cached data if available (force=false)
+                const groups = await fetchThemesFromStatic(false);
                 // Decode the ID in case it was encoded for the URL
                 const decodedId = decodeURIComponent(id || '');
                 const foundGroup = groups.find(g => g.id === decodedId);

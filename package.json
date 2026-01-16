@@ -6,12 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview",
-    "update:themes": "tsx scripts/update-themes.ts"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@caolib/time-util": "^1.0.0",
-    "dotenv": "^17.2.3",
     "lucide-react": "^0.555.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
@@ -28,7 +26,6 @@
     "autoprefixer": "^10.4.23",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.19",
-    "tsx": "^4.21.0",
     "typescript": "~5.8.3",
     "vite": "^6.4.1"
   }

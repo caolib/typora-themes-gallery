@@ -169,7 +169,7 @@ const Gallery: React.FC<GalleryProps> = ({ themeMode, setThemeMode, lang, setLan
     setFetchError(null);
     try {
       // Try to fetch static JSON first (fast, no rate limit)
-      const groups = await fetchThemesFromStatic();
+      const groups = await fetchThemesFromStatic(force);
 
       setThemeGroups(groups);
       setVisibleCount(ITEMS_PER_PAGE); // Reset pagination on full reload

@@ -4,17 +4,38 @@ const TYPORA_REPO_API = 'https://api.github.com/repos/typora/theme.typora.io/con
 const THUMBNAIL_BASE_URL = 'https://raw.githubusercontent.com/typora/theme.typora.io/gh-pages/media/thumbnails/';
 const FRONTMATTER_REGEX = /^---\n([\s\S]*?)\n---/;
 
+const DATA_CACHE_KEY = 'themes_json_cache';
+const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
+
 /**
  * Validates if the static data is stale (optionally used later)
  */
-export const fetchThemesFromStatic = async (): Promise<ThemeGroup[]> => {
+export const fetchThemesFromStatic = async (force: boolean = false): Promise<ThemeGroup[]> => {
   try {
-    // Add timestamp to bypass cache
-    const response = await fetch(`/themes.json?t=${Date.now()}`);
+    if (!force) {
+      const cached = localStorage.getItem(DATA_CACHE_KEY);
+      if (cached) {
+        const { timestamp, data } = JSON.parse(cached);
+        if (Date.now() - timestamp < CACHE_DURATION) {
+          return data;
+        }
+      }
+    }
+
+    // Fetch from external CDN repository
+    const DATA_URL = 'https://raw.githubusercontent.com/caolib/cdn/main/json/themes.json';
+    const response = await fetch(DATA_URL); // Removed timestamp to allow browser caching if applicable
     if (!response.ok) {
       throw new Error('Failed to load static themes data');
     }
     const data = await response.json();
+
+    // Update cache
+    localStorage.setItem(DATA_CACHE_KEY, JSON.stringify({
+      timestamp: Date.now(),
+      data
+    }));
+
     return data;
   } catch (error) {
     console.error("Static fetch failed, falling back to API is possible but not implemented fully here.", error);
